@@ -1,4 +1,4 @@
-CREATE DATABASE osm_network ENCODING = 'UTF8';
+CREATE DATABASE bike_network ENCODING = 'UTF8';
 
 CREATE EXTENSION postgis;
 
