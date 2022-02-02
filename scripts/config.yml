@@ -1,0 +1,6 @@
+#This file contains setting used in the data processing
+
+
+study_area : 'testarea'
+OSM_fp : '..data/'
+CRS : 'EPSG:25832'
