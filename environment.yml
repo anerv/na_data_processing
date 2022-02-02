@@ -1,0 +1,4 @@
+name: na_data
+channels:
+  - defaults
+prefix: /opt/miniconda3/envs/na_data
