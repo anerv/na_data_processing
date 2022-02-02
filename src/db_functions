@@ -150,7 +150,7 @@ if __name__ == '__main__':
     db_user = 'postgres'
     db_password = 'aneitu'
     db_host = 'localhost'
-    db_name = 'osm_network'
+    db_name = 'bike_network'
     db_port = '5432'
 
     connection = connect_pg(db_name, db_user, db_password)
@@ -159,7 +159,7 @@ if __name__ == '__main__':
     q2 = "INSERT INTO test_table VALUES ('bike');"
     q3 = "DROP TABLE IF EXISTS test_table CASCADE;"
 
-    q4 = 'test_sql.sql'
+    q4 = '../tests/test_sql.sql'
 
     test1 = run_query_pg(q1,connection, commit=True)
     test2 = run_query_pg(q2,connection, commit=True)
