@@ -3,15 +3,15 @@ The purpose of this script is to
 1) Convert OSM data to a graph format. This step is using pyrosm which has been optimized for loading OSM data from pbf files for large areas
 2) Load the resulting data to a PostGIS database 
 
+Requires a postgres db with postgis extension activated!
+
 '''
+
+# TODO: remove unused columns from osm data
 #%%
 import pyrosm
-import psycopg2 as pg
-import geopandas as gpd
 import yaml
-import matplotlib.pyplot as plt
 import osmnx as ox
-import networkx as nx
 from src import db_functions as dbf
 #%%
 
@@ -20,7 +20,10 @@ with open(r'config.yml') as file:
 
 
     study_area = parsed_yaml_file['study_area']
-    osm_fp = parsed_yaml_file['OSM_fp']
+    osm_fp = parsed_yaml_file['osm_fp']
+    geodk_fp = parsed_yaml_file['geodk_fp']
+
+    crs = parsed_yaml_file['CRS']
 
     db_name = parsed_yaml_file['db_name']
     db_user = parsed_yaml_file['db_user']
@@ -31,29 +34,36 @@ with open(r'config.yml') as file:
     
 print('Settings loaded!')
 
-
 #%%
-'''
-Load OSM data network data, convert to graph format, get nodes and edges, load to db
-'''
 osm = pyrosm.OSM(osm_fp)
 
 nodes, edges = osm.get_network(nodes=True)
 
 G = osm.to_graph(nodes, edges, graph_type="networkx")
 
+G = ox.project_graph(G, to_crs=crs)
+
 ox_nodes, ox_edges = ox.graph_to_gdfs(G)
 
+assert ox_edges.crs == crs, 'Data is in wrong crs!'
+
+ox_edges.reset_index(inplace=True)
+ox_nodes.reset_index(inplace=True, drop=True)
 #%%
 connection = dbf.connect_pg(db_name, db_user, db_password)
 
-engine_test = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-# Create tables?
-# Load with to postgis
+#%%
+dbf.to_postgis(geodataframe=ox_edges, table_name='osm_edges', engine=engine)
 
-# Check result?
+dbf.to_postgis(ox_nodes, 'osm_nodes', engine)
 
+q = 'SELECT osmid, HIGHWAY FROM osm_edges LIMIT 10;'
+
+test = dbf.run_query_pg(q, connection)
+
+print(test)
 #%%
 # Load other data from OSM? E.g. traffic lights
 
