@@ -1,7 +1,8 @@
 #This file contains setting used in the data processing
 
 study_area: 'testarea'
-OSM_fp: '../data/planet_11.3481,55.5705_11.8357,55.7403.osm.pbf'
+osm_fp: '../data/planet_11.3481,55.5705_11.8357,55.7403.osm.pbf'
+geodk_fp: '../data/DK_SHAPE_UTM32-EUREF89/FOT/TRAFIK/VEJMIDTE_BRUDT.shp'
 CRS: 'EPSG:25832'
 
 db_name: 'bike_network'
