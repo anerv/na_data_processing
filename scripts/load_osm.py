@@ -7,7 +7,7 @@ Requires a postgres db with postgis extension activated!
 
 '''
 
-# TODO: remove unused columns from osm data
+# TODO: remove unused columns from osm data, load other osm data (e.g. traffic lights)
 #%%
 import pyrosm
 import yaml
@@ -18,8 +18,6 @@ from src import db_functions as dbf
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
 
-
-    study_area = parsed_yaml_file['study_area']
     osm_fp = parsed_yaml_file['osm_fp']
     geodk_fp = parsed_yaml_file['geodk_fp']
 
@@ -49,6 +47,9 @@ assert ox_edges.crs == crs, 'Data is in wrong crs!'
 
 ox_edges.reset_index(inplace=True)
 ox_nodes.reset_index(inplace=True, drop=True)
+
+ox_edges.columns = ox_edges.columns.str.lower()
+ox_nodes.columns = ox_nodes.columns.str.lower()
 #%%
 connection = dbf.connect_pg(db_name, db_user, db_password)
 
@@ -59,20 +60,12 @@ dbf.to_postgis(geodataframe=ox_edges, table_name='osm_edges', engine=engine)
 
 dbf.to_postgis(ox_nodes, 'osm_nodes', engine)
 
-q = 'SELECT osmid, HIGHWAY FROM osm_edges LIMIT 10;'
+q = 'SELECT osmid, highway FROM osm_edges LIMIT 10;'
 
 test = dbf.run_query_pg(q, connection)
 
 print(test)
+
+connection.close()
 #%%
 # Load other data from OSM? E.g. traffic lights
-
-# %%
-'''
-osmnx and pandana create the same number of edges (indicating same structure for network)
-- but pandana seems to be a simpler df structure.
-- osmnx needs the multiindex
-- seems to be simpler to create pandana edge list from osmnx than vice versa
-- workflow could be to load osmnx data to postgis database - do processing - load back to geodataframe
-- and then convert to which graph type I need
-'''
