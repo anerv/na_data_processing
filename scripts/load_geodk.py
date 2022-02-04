@@ -11,9 +11,6 @@ from src import db_functions as dbf
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
 
-
-    study_area = parsed_yaml_file['study_area']
-    
     geodk_fp = parsed_yaml_file['geodk_fp']
 
     crs = parsed_yaml_file['CRS']
