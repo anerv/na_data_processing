@@ -7,6 +7,8 @@
 *.prj
 *.cpg
 *.gpkg
+*.gpkg-shm 
+*.gpkg-wal
 data/DK_SHAPE_UTM32-EUREF89/CreateIndex.bat
 data/DK_SHAPE_UTM32-EUREF89/FOT2GIS.doc
 data/DK_SHAPE_UTM32-EUREF89/FOT4_shape_9.3.mxd
