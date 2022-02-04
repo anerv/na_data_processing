@@ -41,3 +41,4 @@ data/planet_11.489,55.575_12.465,55.915-shp/README.txt
 *.egg-info
 *.pbf
 *.pyc
+*.avl
