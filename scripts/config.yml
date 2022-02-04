@@ -2,7 +2,8 @@
 
 study_area: 'testarea'
 osm_fp: '../data/planet_11.3481,55.5705_11.8357,55.7403.osm.pbf'
-geodk_fp: '../data/DK_SHAPE_UTM32-EUREF89/FOT/TRAFIK/VEJMIDTE_BRUDT.shp'
+#geodk_fp: '../data/DK_SHAPE_UTM32-EUREF89/FOT/TRAFIK/VEJMIDTE_BRUDT.shp'
+geodk_fp: '../data/DK_SHAPE_UTM32-EUREF89/FOT/TRAFIK/VEJMIDTE_BRUDT_subset.gpkg'
 CRS: 'EPSG:25832'
 
 db_name: 'bike_network'
