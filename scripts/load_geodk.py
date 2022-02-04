@@ -1,7 +1,11 @@
+'''
+Script for loading GeoDK data (shapefile, geopackage etc.) to PostGIS db
+Required an exisinting db with postgis extension
+'''
+
 #%%
-import pyrosm
+import geopandas as gpd
 import yaml
-import osmnx as ox
 from src import db_functions as dbf
 # %%
 with open(r'config.yml') as file:
@@ -23,16 +27,32 @@ with open(r'config.yml') as file:
     
 print('Settings loaded!')
 #%%
+geodk = gpd.read_file(geodk_fp)
 
-#Load geodk data
+geodk.columns = geodk.columns.str.lower()
+
+useful_cols = ['fot_id', 'mob_id', 'feat_kode', 'feat_type', 'featstatus',
+       'geomstatus', 'startknude', 'slutknude', 'niveau', 'overflade',
+       'rund_koer', 'kom_kode', 'vejkode', 'tilfra_koe',
+       'trafikart', 'vejklasse', 'vej_mynd', 'vej_type', 'geometry']
+
+geodk = geodk[useful_cols]
 
 #Check crs
-
-#Load to postgis
+assert geodk.crs == crs
+#%%
 connection = dbf.connect_pg(db_name, db_user, db_password)
 
 engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-dbf.to_postgis(geodataframe=ox_edges, table_name='osm_edges', engine=engine)
+dbf.to_postgis(geodataframe=geodk, table_name='vm_brudt', engine=engine)
 
-#Check that it worked
+#%%
+q = 'SELECT fot_id, feat_type FROM vm_brudt LIMIT 10;'
+
+test = dbf.run_query_pg(q, connection)
+
+print(test)
+
+connection.close()
+# %%
