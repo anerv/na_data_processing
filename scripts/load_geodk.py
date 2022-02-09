@@ -35,7 +35,8 @@ useful_cols = ['fot_id', 'mob_id', 'feat_kode', 'feat_type', 'featstatus',
 
 geodk = geodk[useful_cols]
 
-#Check crs
+geodk = geodk.to_crs(crs)
+
 assert geodk.crs == crs
 #%%
 connection = dbf.connect_pg(db_name, db_user, db_password)
