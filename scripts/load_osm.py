@@ -41,8 +41,9 @@ extra_attr = ['cycleway:left','cycleway:right','cycleway:both','cycleway:width',
 
 nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
 
+G = osm.to_graph(nodes, edges, graph_type="networkx", retain_all=True)
 
-G = osm.to_graph(nodes, edges, graph_type="networkx")
+G = ox.get_undirected(G)
 
 G = ox.project_graph(G, to_crs=crs)
 
@@ -65,7 +66,7 @@ dbf.to_postgis(geodataframe=ox_edges, table_name='osm_edges', engine=engine)
 
 dbf.to_postgis(ox_nodes, 'osm_nodes', engine)
 
-q = 'SELECT osmid, highway FROM osm_edges LIMIT 10;'
+q = 'SELECT osmid, name, highway FROM osm_edges LIMIT 10;'
 
 test = dbf.run_query_pg(q, connection)
 
