@@ -36,7 +36,7 @@ print('Settings loaded!')
 osm = pyrosm.OSM(osm_fp)
 
 extra_attr = ['cycleway:left','cycleway:right','cycleway:both','cycleway:width',
-            'cycleway:left:width','cycleway:right:width','cycleway:both:width','cyclestreet'
+            'cycleway:left:width','cycleway:right:width','cycleway:both:width','bicycle_road',
             'cycleway:surface','cyclestreet','sidewalk','crossing','barrier','bollard','flashing_lights']
 
 nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
