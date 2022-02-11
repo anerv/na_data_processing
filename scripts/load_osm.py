@@ -36,7 +36,7 @@ print('Settings loaded!')
 osm = pyrosm.OSM(osm_fp)
 
 extra_attr = ['cycleway:left','cycleway:right','cycleway:both','cycleway:width',
-            'cycleway:left:width','cycleway:right:width','cycleway:both:width',
+            'cycleway:left:width','cycleway:right:width','cycleway:both:width','cyclestreet'
             'cycleway:surface','cyclestreet','sidewalk','crossing','barrier','bollard','flashing_lights']
 
 nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
@@ -56,6 +56,21 @@ ox_nodes.reset_index(inplace=True, drop=True)
 
 ox_edges.columns = ox_edges.columns.str.lower()
 ox_nodes.columns = ox_nodes.columns.str.lower()
+
+
+#%%
+edge_cols = ox_edges.columns.to_list()
+
+new_edge_cols = [c.replace(':','_') for c in edge_cols]
+
+ox_edges.columns = new_edge_cols
+
+node_cols = ox_nodes.columns
+
+new_node_cols = [c.replace(':','_') for c in node_cols]
+
+ox_nodes.columns = new_node_cols
+
 #%%
 connection = dbf.connect_pg(db_name, db_user, db_password)
 
