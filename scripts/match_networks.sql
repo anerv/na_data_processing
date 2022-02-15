@@ -58,3 +58,9 @@ USE THIS METHOD:
         # Discard OSM features above a XXX tolerance
         # Select best match
         # Transfer GeoDK attribute to OSM
+
+
+
+"Clipping" a segment to a clip line involves extracting the substring of the segment 
+between the two points which lie closest to the start and end points of the clip line. 
+This is done by the function ST_LineSubstringLine in the code linked above
