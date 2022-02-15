@@ -102,7 +102,32 @@ geodk_bike['length'] = geodk_bike.geometry.length
 osm_edges['length'] = osm_edges.geometry.length
 
 for index, row in osm_matches.iterrows():
-    osm_df = osm_edges.loc[row.matches]
+    osm_df = osm_edges.loc[row.matches_index]
+
+
+    # Clip GeoDK with each matched feature
+        # What happens if OSM is much longer..?
+        # Find Hausdorff distance based on snapped points then
+        # See if it's parallel
+        # Chose the closests?
+    # Get start and end points of OSM line
+    # Use Shapely nearest point to snap GeoDK start and end points to...
+    # Which one do I want to snap? I want to find the OSM line that matches the GeoDK bike! 
+    # ....start and end points to GeoDK geometry
+    # Check how much of the line is removed!!! If under XXX meter/percent, don't clip
+        #Or maybe clip for hausdorff computation, but keep original geometry
+    # Extract that as the new GeoDK element
+    # Compute Hausdorff distance
+
+    #Decide on best match?
+
+    # How to get info back in original format?
+
+
+    #Compute length differences between GeoDK and all matches
+    #GeoDK can be longer than OSM, but OSM cannot be longer than GeoDK
+    #Compute Hausdorff distances
+
     
 
 #%%
@@ -121,7 +146,7 @@ poly2 = geodk_buff['geometry'].loc[geodk_buff['fot_id']==1087380287]
 point1 = Point(poly2.bounds['minx'].values, poly2.bounds['miny'].values)
 point2 = Point(poly2.bounds['maxx'].values, poly2.bounds['maxy'].values)
 
-points=gpd.GeoDataFrame(geometry=gpd.points_from_xy([point1.x, point2.x],[point1.y, point2.y]))
+points = gpd.GeoDataFrame(geometry=gpd.points_from_xy([point1.x, point2.x],[point1.y, point2.y]))
 
 buffer = geodk_buff.loc[geodk_buff['fot_id']==1087380287]
 line = osm_edges.loc[osm_edges.osmid==26927690]
