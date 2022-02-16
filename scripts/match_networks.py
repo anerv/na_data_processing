@@ -1,5 +1,7 @@
 '''
 Script for matching road networks
+Method assumes a simplified version of public dataset - that edges generally are longer or as long as OSM??
+Maybe use the OSM-no bike to speed up efficiency?
 '''
 # TODO: Docs
 #%%
@@ -8,6 +10,9 @@ import geopandas as gpd
 import yaml
 from src import db_functions as dbf
 import pandas as pd
+from shapely.ops import nearest_points, split
+from shapely.geometry import Point, MultiPoint, LineString
+from scipy.spatial.distance import directed_hausdorff
 #%%
 
 with open(r'config.yml') as file:
@@ -51,9 +56,13 @@ print(f'Number of rows in grid table: {len(grid)}')
 # For analysing larger areas - do a grid by grid matching
 env = gpd.GeoDataFrame()
 env.at[0,'geometry'] = geodk_bike.unary_union.envelope
-env = env.set_crs(crs)
+env = env.set_crs(crs) 
 
 clipped_grid = gpd.clip(grid, env)
+#%%
+# Not a great solution at this step - keeps only the nearest feature
+#matches = gpd.sjoin_nearest(geodk_bike, osm_edges, how='inner', max_distance=10, distance_col='dist')
+
 #%%
 # Create buffered geometries from all of GeoDK geometries - maintain index/link to original features
 
@@ -62,9 +71,6 @@ geodk_buff = geodk_bike.copy(deep=True)
 geodk_buff.geometry = geodk_bike.geometry.buffer(distance=10)
 
 osm_sindex = osm_edges.sindex
-#%%
-# Not a great solution at this step - keeps only the nearest feature
-#matches = gpd.sjoin_nearest(geodk_bike, osm_edges, how='inner', max_distance=10, distance_col='dist')
 
 #%%
 osm_matches = pd.DataFrame(index=geodk_buff.index)
@@ -73,13 +79,11 @@ osm_matches['matches_index'] = None
 osm_matches['matches_osmid'] = None
 osm_matches['fot_id'] = None
 
-
 for index, row in geodk_buff.iterrows():
    
     poly = row['geometry']
     possible_matches_index = list(osm_sindex.intersection(poly.bounds))
     #possible_matches_index = list(osm_sindex.query_bulk(poly, predicate='intersects')[1])
-    
     possible_matches = osm_edges.iloc[possible_matches_index]
     precise_matches = possible_matches[possible_matches.intersects(poly)]
     precise_matches_index = list(precise_matches.index)
@@ -88,7 +92,6 @@ for index, row in geodk_buff.iterrows():
     osm_matches.at[index, 'matches_osmid'] = precise_matches_id
     osm_matches.at[index, 'fot_id'] = row.fot_id
   
-
 #%%
 # Now I have all osm lines intersecting the geodk bike buffer
 # for each row:
@@ -97,21 +100,90 @@ for index, row in geodk_buff.iterrows():
     #Compute length of all features
     #Compute Hausdorff distance for all matches
 
-geodk_bike['length'] = geodk_bike.geometry.length
+#geodk_bike['length'] = geodk_bike.geometry.length
 
-osm_edges['length'] = osm_edges.geometry.length
+#osm_edges['length'] = osm_edges.geometry.length
 
-for index, row in osm_matches.iterrows():
-    osm_df = osm_edges.loc[row.matches_index]
+for index, row in osm_matches.iterrows(): # Use something else than iterrows??
+
+    # If no matches exist at all, continue to next GeoDk geometry
+    if len(row.matches_index) < 1:
+        continue
+
+    else:
+
+        osm_df = osm_edges.loc[row.matches_index]
+
+        osm_df['hausdorff_dist'] = None
+        osm_df['angle'] = None
 
 
+        geodk_edge = geodk_bike.loc[index].geometry
+
+        for i, r in osm_df.iterrows():
+
+            osm_edge = r.geometry
+
+            osm_start_node = Point(osm_edge.coords[0])
+            osm_end_node = Point(osm_edge.coords[-1])
+
+            # Get nearest point on GeoDK geometry to start and end nodes of OSM match
+            queried_point, nearest_point_start = nearest_points(osm_start_node, geodk_edge)
+            queried_point, nearest_point_end = nearest_points(osm_end_node, geodk_edge)
+    
+            # Clip GeoDK geometry with nearest points
+            clip_points = MultiPoint(nearest_point_start, nearest_point_end)
+        
+            clipped_geodk_edge = split(geodk_edge, clip_points).geoms[1]
+
+            # If length of clipped GeoDK is very small it indicates that the OSM edge is perpendicular with the GeoDK edge and thus not a correct match
+            if clipped_geodk_edge.length < 2:
+                continue
+
+            # Compute Hausdorff distance (max distance between two lines)
+            osm_coords = list(osm_edge.coords)
+            geodk_coords = list(geodk_edge.coords)
+            hausdorff_dist = max(directed_hausdorff(osm_coords, geodk_coords)[0], directed_hausdorff(geodk_coords, osm_coords)[0])
+            
+            osm_df.at[i, 'hausdorff_dist'] = hausdorff_dist
+
+            hausdorff_threshold = 15 # threshold in meters
+            if hausdorff_dist > hausdorff_threshold:
+                continue
+
+            # Angular tolerance
+            arr1 = np.array(osm_edge.coords)
+            arr1 = arr1[1] - arr2[0]
+
+            arr2 = np.array(geodk_edge.coords)
+            arr2 = arr2[1] - arr2[0]
+
+            angle = np.math.atan2(np.linalg.det([arr1,arr2]),np.dot(arr1,arr2))
+            angle_deg = abs(np.degrees(angle))
+            
+            osm_df.at[i, 'angle'] = angle_deg
+
+            angular_threshold = 30
+
+            if angle_deg > angular_threshold:
+                continue
+
+            # Find best match - but with thresholds - i.e. best match might not be a correct match
+
+            # Find a way to save results / transfer to OSM data
+
+            # Question - what about 'unmatched' GeoDk cycling infra - either no match or segments clipped away when clipping to OSM extent?
+            # Find a way of quantifying the problem/adding it to dataset
+        
+    # First I took GeoDK as a starting point - now I am interested in OSM
     # Clip GeoDK with each matched feature
         # What happens if OSM is much longer..?
         # Find Hausdorff distance based on snapped points then
         # See if it's parallel
         # Chose the closests?
-    # Get start and end points of OSM line
-    # Use Shapely nearest point to snap GeoDK start and end points to...
+
+    
+    
     # Which one do I want to snap? I want to find the OSM line that matches the GeoDK bike! 
     # ....start and end points to GeoDK geometry
     # Check how much of the line is removed!!! If under XXX meter/percent, don't clip
@@ -139,7 +211,6 @@ dbf.to_postgis(geodk_buff, 'geodk_buff', engine)
 connection.close()
 
 #%%
-from shapely.geometry import Point
 
 poly2 = geodk_buff['geometry'].loc[geodk_buff['fot_id']==1087380287]
 
@@ -156,4 +227,51 @@ line.plot(ax=ax, color='red')
 points.plot(ax=ax, color='green')
 #%%
 
+test_line = LineString([[1,1],[3,3],[5,5]])
+
+p1 = Point(1,2)
+
+p2 = Point(2,3)
+
+queried_point, start = nearest_points(p1, test_line)
+queried_point, end = nearest_points(p2, test_line)
+
+multi = MultiPoint([start, end])
+
+clipped_test_s = split(test_line, start)
+clipped_test_m = split(test_line, multi)
 # %%
+
+line1 = LineString([[0,0],[3,4]])
+line2 = LineString([[2,0],[3,3]])
+
+# %%
+u = [[0,0],[3,4]]
+v = [[2,0],[3,3]]
+dist = max(directed_hausdorff(u, v)[0], directed_hausdorff(v, u)[0])
+# %%
+min_dist = min(directed_hausdorff(u, v)[0], directed_hausdorff(v, u)[0])
+# %%
+test1 = directed_hausdorff(u,v)[0]
+test2 = directed_hausdorff(v,u)[0]
+# %%
+import numpy as np
+
+#line1 = LineString([[0,0],[3,4]])
+#line2 = LineString([[2,0],[3,3]])
+line1 = LineString([[4,0],[4,4]])
+line2 = LineString([[1,1],[3,1]])
+
+#%%
+seg1 = np.array(line1.coords)
+seg1 = seg1[1] - seg1[0]
+
+seg2 = np.array(line2.coords)
+seg2 = seg2[1] - seg2[0]
+
+angle = np.math.atan2(np.linalg.det([seg1,seg2]),np.dot(seg1,seg2))
+print(abs(np.degrees(angle)))
+
+# %%
+angle2 = np.angle(complex(*(seg2), deg=True))
+angle1 = np.angle(complex(*(seg1), deg=True))
