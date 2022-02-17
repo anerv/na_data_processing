@@ -6,6 +6,7 @@ Maybe use the OSM-no bike to speed up efficiency?
 # TODO: Docs
 #%%
 
+from pydoc import cli
 import geopandas as gpd
 import yaml
 from src import db_functions as dbf
@@ -83,7 +84,6 @@ for index, row in geodk_buff.iterrows():
    
     poly = row['geometry']
     possible_matches_index = list(osm_sindex.intersection(poly.bounds))
-    #possible_matches_index = list(osm_sindex.query_bulk(poly, predicate='intersects')[1])
     possible_matches = osm_edges.iloc[possible_matches_index]
     precise_matches = possible_matches[possible_matches.intersects(poly)]
     precise_matches_index = list(precise_matches.index)
@@ -93,21 +93,26 @@ for index, row in geodk_buff.iterrows():
     osm_matches.at[index, 'fot_id'] = row.fot_id
   
 #%%
-# Now I have all osm lines intersecting the geodk bike buffer
-# for each row:
-# get osm geometries through match index
-# Find the best match:
-    #Compute length of all features
-    #Compute Hausdorff distance for all matches
+# Now we have all osm lines intersecting the geodk bike buffer
 
 #geodk_bike['length'] = geodk_bike.geometry.length
 
 #osm_edges['length'] = osm_edges.geometry.length
 
+osm_matched = []
+geodk_not_matched = []
+geodk_part_matched = []
+
+angular_threshold = 20 # threshold in degress
+hausdorff_threshold = 15 # threshold in meters
+
 for index, row in osm_matches.iterrows(): # Use something else than iterrows??
 
     # If no matches exist at all, continue to next GeoDk geometry
     if len(row.matches_index) < 1:
+
+        geodk_not_matched.append(index)
+
         continue
 
     else:
@@ -117,10 +122,13 @@ for index, row in osm_matches.iterrows(): # Use something else than iterrows??
         osm_df['hausdorff_dist'] = None
         osm_df['angle'] = None
 
-
         geodk_edge = geodk_bike.loc[index].geometry
 
+        clipped_edges = pd.DataFrame(index=osm_df.index, columns=['clip_length','meters_removed','percent_removed'])
+
         for i, r in osm_df.iterrows():
+
+            # i here is OSM index!
 
             osm_edge = r.geometry
 
@@ -136,6 +144,12 @@ for index, row in osm_matches.iterrows(): # Use something else than iterrows??
         
             clipped_geodk_edge = split(geodk_edge, clip_points).geoms[1]
 
+            # OBS - save how much have been saved/clipped
+            percent_removed = None # Compute how much has been removed
+            clipped_edges.at[i,'clip_length'] = clipped_geodk_edge.length
+            clipped_edges.at[i,'meters_removed'] = None
+            clipped_edges.at[i,'percent_removed'] = None
+
             # If length of clipped GeoDK is very small it indicates that the OSM edge is perpendicular with the GeoDK edge and thus not a correct match
             if clipped_geodk_edge.length < 2:
                 continue
@@ -147,11 +161,7 @@ for index, row in osm_matches.iterrows(): # Use something else than iterrows??
             
             osm_df.at[i, 'hausdorff_dist'] = hausdorff_dist
 
-            hausdorff_threshold = 15 # threshold in meters
-            if hausdorff_dist > hausdorff_threshold:
-                continue
-
-            # Angular tolerance
+            # Angular difference
             arr1 = np.array(osm_edge.coords)
             arr1 = arr1[1] - arr2[0]
 
@@ -163,18 +173,49 @@ for index, row in osm_matches.iterrows(): # Use something else than iterrows??
             
             osm_df.at[i, 'angle'] = angle_deg
 
-            angular_threshold = 30
+        # Find potential matches of all matches for this geodk geometry
+        potential_matches = osm_df[ (osm_df.angle < angular_threshold) & (osm_df.hausdorff_dist < hausdorff_threshold)]
 
-            if angle_deg > angular_threshold:
-                continue
+        if len(potential_matches) == 0:
 
-            # Find best match - but with thresholds - i.e. best match might not be a correct match
+            geodk_not_matched.append(index)
 
-            # Find a way to save results / transfer to OSM data
-
-            # Question - what about 'unmatched' GeoDk cycling infra - either no match or segments clipped away when clipping to OSM extent?
-            # Find a way of quantifying the problem/adding it to dataset
+            continue
         
+        elif len(potential_matches) == 1:
+
+            osm_matches.append(potential_matches.index.values[0])
+
+            # OBS! Check how much of geodk geometry has been clipped for this match!
+            # Save match between osm and geodk edges
+
+        else:
+
+            # Get match(es) with smallest Hausdorff distance and angular tolerance
+            osm_df['hausdorff_dist'] = pd.to_numeric('hausdorff_dist')
+            osm_df['angle'] = pd.to_numeric(osm_df['angle'])
+            best_matches = osm_df[['hausdorff_dist','angle']].min()
+            best_matches_index = osm_df[['hausdorff_dist','angle']].idxmin()
+
+            # See how many matches there are?
+            # If just one - pick that one
+            # If more than one - save the best 2 candidates? The one with smallest distance and the one with smallest angle?
+            # Or do a new filtering with a smaller angular threshold and smaller dist (e.g. 10 meters and 10 degrees)
+            # Do one at a time maybe loop untill only one?
+
+            # OBS! Check how much of geodk geometry has been clipped for this match!
+            # Save match between osm and geodk edges
+
+        # At this point - look at clipped df - if more than XXX meters and XXX percent has been clipped
+
+        # Question - what about 'unmatched' GeoDk cycling infra - either no match or segments clipped away when clipping to OSM extent?
+        # Find a way of quantifying the problem/adding it to dataset
+        # Use list of matched GeoDK edges and create a df in loop for all geometries - save clipped percent etc for final choice/Match with osm
+        # Also save the unmatched geometries?? could be small lines on each side, not that relevant
+
+        
+    # Find a way to save results / transfer to OSM data
+
     # First I took GeoDK as a starting point - now I am interested in OSM
     # Clip GeoDK with each matched feature
         # What happens if OSM is much longer..?
