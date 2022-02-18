@@ -3,15 +3,15 @@ Script for matching road networks
 Method assumes a simplified version of public dataset - that edges generally are longer or as long as OSM??
 Maybe use the OSM-no bike to speed up efficiency?
 '''
-# TODO: Docs
+# TODO: Docs, find alternative to append (deprecated)
 #%%
-
-from pydoc import cli
 import geopandas as gpd
+import pandas as pd
+import numpy as np
 import yaml
 from src import db_functions as dbf
-import pandas as pd
-from shapely.ops import nearest_points, split
+from src import geometric_functions as gf
+from shapely.ops import nearest_points, split, linemerge
 from shapely.geometry import Point, MultiPoint, LineString
 from scipy.spatial.distance import directed_hausdorff
 #%%
@@ -27,7 +27,6 @@ with open(r'config.yml') as file:
     db_host = parsed_yaml_file['db_host']
     db_port = parsed_yaml_file['db_port']
   
-    
 print('Settings loaded!')
 
 #%%
@@ -60,9 +59,6 @@ env.at[0,'geometry'] = geodk_bike.unary_union.envelope
 env = env.set_crs(crs) 
 
 clipped_grid = gpd.clip(grid, env)
-#%%
-# Not a great solution at this step - keeps only the nearest feature
-#matches = gpd.sjoin_nearest(geodk_bike, osm_edges, how='inner', max_distance=10, distance_col='dist')
 
 #%%
 # Create buffered geometries from all of GeoDK geometries - maintain index/link to original features
@@ -95,36 +91,43 @@ for index, row in geodk_buff.iterrows():
 #%%
 # Now we have all osm lines intersecting the geodk bike buffer
 
-#geodk_bike['length'] = geodk_bike.geometry.length
-
-#osm_edges['length'] = osm_edges.geometry.length
-
 osm_matched = []
+geodk_matched = []
 geodk_not_matched = []
-geodk_part_matched = []
+geodk_part_matched = gpd.GeoDataFrame(columns=['geodk_fotid','geometry'], crs=crs)
+geodk_several_matches = []
+final_matches = gpd.GeoDataFrame(columns=['geodk_fotid','osmid','geometry'], crs=crs)
 
 angular_threshold = 20 # threshold in degress
 hausdorff_threshold = 15 # threshold in meters
 
-for index, row in osm_matches.iterrows(): # Use something else than iterrows??
+percent_removed_threshold = 30 # in percent
+meters_removed_threshold = 5 # in meters
+
+for index, row in osm_matches.iterrows(): # OBS Use something else than iterrows??
 
     # If no matches exist at all, continue to next GeoDk geometry
     if len(row.matches_index) < 1:
 
-        geodk_not_matched.append(index)
+        geodk_not_matched.append(row.fot_id)
 
         continue
 
     else:
 
-        osm_df = osm_edges.loc[row.matches_index]
+        osm_df = osm_edges[['osmid','highway','name','geometry']].iloc[row.matches_index].copy(deep=True)
 
         osm_df['hausdorff_dist'] = None
         osm_df['angle'] = None
 
         geodk_edge = geodk_bike.loc[index].geometry
 
-        clipped_edges = pd.DataFrame(index=osm_df.index, columns=['clip_length','meters_removed','percent_removed'])
+        if geodk_edge.geom_type == 'MultiLineString':
+            geodk_edge = linemerge(geodk_edge)
+        
+        #Dataframe for storing how much is clipped with the different OSM matches
+        clipped_edges = gpd.GeoDataFrame(index=osm_df.index, columns=['clipped_length','meters_removed','percent_removed','fot_id','geometry'], crs=crs)
+        clipped_edges['geometry'] = None
 
         for i, r in osm_df.iterrows():
 
@@ -140,15 +143,25 @@ for index, row in osm_matches.iterrows(): # Use something else than iterrows??
             queried_point, nearest_point_end = nearest_points(osm_end_node, geodk_edge)
     
             # Clip GeoDK geometry with nearest points
-            clip_points = MultiPoint(nearest_point_start, nearest_point_end)
-        
-            clipped_geodk_edge = split(geodk_edge, clip_points).geoms[1]
+            clip_points = MultiPoint([nearest_point_start, nearest_point_end])
 
-            # OBS - save how much have been saved/clipped
-            percent_removed = None # Compute how much has been removed
-            clipped_edges.at[i,'clip_length'] = clipped_geodk_edge.length
-            clipped_edges.at[i,'meters_removed'] = None
-            clipped_edges.at[i,'percent_removed'] = None
+            #Check if line is clipped at all - if not
+
+            if len(split(geodk_edge, clip_points).geoms) == 1:
+                # Line is not clipped - they are either completely identical or perpendicular
+                clipped_geodk_edge = split(geodk_edge, clip_points).geoms[0]
+
+            else:
+                clipped_geodk_edge = split(geodk_edge, clip_points).geoms[1]
+    
+                meters_removed = geodk_edge.length - clipped_geodk_edge.length
+                percent_removed = meters_removed * 100 / geodk_edge.length
+                clipped_edges.at[i,'clipped_length'] = clipped_geodk_edge.length
+                clipped_edges.at[i,'meters_removed'] = meters_removed
+                clipped_edges.at[i,'percent_removed'] = percent_removed
+                clipped_edges.at[i, 'fot_id'] = index
+                clipped_edges.at[i, 'geometry'] = gf.get_geom_diff(geodk_edge, clipped_geodk_edge)
+
 
             # If length of clipped GeoDK is very small it indicates that the OSM edge is perpendicular with the GeoDK edge and thus not a correct match
             if clipped_geodk_edge.length < 2:
@@ -156,14 +169,14 @@ for index, row in osm_matches.iterrows(): # Use something else than iterrows??
 
             # Compute Hausdorff distance (max distance between two lines)
             osm_coords = list(osm_edge.coords)
-            geodk_coords = list(geodk_edge.coords)
+            geodk_coords = list(clipped_geodk_edge.coords)
             hausdorff_dist = max(directed_hausdorff(osm_coords, geodk_coords)[0], directed_hausdorff(geodk_coords, osm_coords)[0])
             
             osm_df.at[i, 'hausdorff_dist'] = hausdorff_dist
 
             # Angular difference
             arr1 = np.array(osm_edge.coords)
-            arr1 = arr1[1] - arr2[0]
+            arr1 = arr1[1] - arr1[0]
 
             arr2 = np.array(geodk_edge.coords)
             arr2 = arr2[1] - arr2[0]
@@ -173,7 +186,7 @@ for index, row in osm_matches.iterrows(): # Use something else than iterrows??
             
             osm_df.at[i, 'angle'] = angle_deg
 
-        # Find potential matches of all matches for this geodk geometry
+        # Find potential matches out of all matches for this geodk geometry - i.e. filter out matches that are not within thresholds
         potential_matches = osm_df[ (osm_df.angle < angular_threshold) & (osm_df.hausdorff_dist < hausdorff_threshold)]
 
         if len(potential_matches) == 0:
@@ -184,28 +197,68 @@ for index, row in osm_matches.iterrows(): # Use something else than iterrows??
         
         elif len(potential_matches) == 1:
 
-            osm_matches.append(potential_matches.index.values[0])
+            geodk_matched.append(index)
+            osm_matched.append(potential_matches.index.values[0])
 
-            # OBS! Check how much of geodk geometry has been clipped for this match!
-            # Save match between osm and geodk edges
+            final_matches.at[index,'geodk_fotid'] = row.fot_id
+            final_matches.at[index, 'osmid'] = potential_matches.osmid.values[0]
+            final_matches.at[index, 'geometry'] = potential_matches.geometry.values[0]
 
+            # First check if osmid have been added to clipped edges df at all - only happens if the geodk edge is actually clipped
+            if clipped_edges.loc[potential_matches.index[0], 'percent_removed'] > percent_removed_threshold and clipped_edges.loc[potential_matches.index[0], 'meters_removed'] > meters_removed_threshold:
+                
+                #Save removed geometries
+                removed_edge = clipped_edges.loc[potential_matches.index[0], ['fot_id','geometry']]
+                geodk_part_matched.append(removed_edge) # OBS use something else than append!
+        
         else:
 
             # Get match(es) with smallest Hausdorff distance and angular tolerance
-            osm_df['hausdorff_dist'] = pd.to_numeric('hausdorff_dist')
+            osm_df['hausdorff_dist'] = pd.to_numeric(osm_df['hausdorff_dist'] )
             osm_df['angle'] = pd.to_numeric(osm_df['angle'])
             best_matches = osm_df[['hausdorff_dist','angle']].min()
             best_matches_index = osm_df[['hausdorff_dist','angle']].idxmin()
 
-            # See how many matches there are?
-            # If just one - pick that one
-            # If more than one - save the best 2 candidates? The one with smallest distance and the one with smallest angle?
-            # Or do a new filtering with a smaller angular threshold and smaller dist (e.g. 10 meters and 10 degrees)
-            # Do one at a time maybe loop untill only one?
+            if len(best_matches) == 1:
 
-            # OBS! Check how much of geodk geometry has been clipped for this match!
-            # Save match between osm and geodk edges
+                geodk_matched.append(index)
+                osm_matched.append(best_matches.index.values[0])
 
+                final_matches.at[index,'geodk_fotid'] = row.fotid
+                final_matches.at[index, 'osmid'] = best_matches.osmid.values[0]
+                final_matches.at[index, 'geometry'] = best_matches.geometry.values[0]
+
+                
+                if clipped_edges.loc[best_matches.index[0], 'percent_removed'] > percent_removed_threshold and clipped_edges.loc[best_matches.index[0], 'meters_removed'] > meters_removed_threshold:
+                
+                    #Save removed geometries
+                    removed_edge = clipped_edges.loc[best_matches.index[0], ['fot_id','geometry']]
+                    geodk_part_matched.append(removed_edge) # OBS use something else than append!
+
+            elif len(best_matches) > 1:
+
+                print('Several matches found!')
+                geodk_several_matches.append(row.fot_id)
+
+    
+                    # If more than one - save the best 2 candidates? The one with smallest distance and the one with smallest angle?
+                    # Or do a new filtering with a smaller angular threshold and smaller dist (e.g. 10 meters and 10 degrees)
+                    # Do one at a time maybe loop untill only one?
+
+                    # OBS! Check how much of geodk geometry has been clipped for this match!
+                    # Save match between osm and geodk edges
+
+
+#%%
+# Look at how many GeoDK are unmatched and how many are partially matched
+
+# Unmatched - maybe simply add to network???
+
+# Partially matched - if length is above threshold do a new iteration - but without including already matched OSM edges
+# And only include removed geometries!!
+
+#%%
+# Transfer GeoDk cycling attribute to OSM
         # At this point - look at clipped df - if more than XXX meters and XXX percent has been clipped
 
         # Question - what about 'unmatched' GeoDk cycling infra - either no match or segments clipped away when clipping to OSM extent?
@@ -316,3 +369,35 @@ print(abs(np.degrees(angle)))
 # %%
 angle2 = np.angle(complex(*(seg2), deg=True))
 angle1 = np.angle(complex(*(seg1), deg=True))
+#%%
+
+line1 = LineString([[1,1],[10,10]])
+line2 = LineString([[3,3],[5,5]])
+#%%
+lines1 = [line1]
+lines2 = [line2]
+geo1 = gpd.GeoDataFrame(geometry = lines1)
+geo2 = gpd.GeoDataFrame(geometry = lines2)
+
+# %%
+def get_geom_diff(geom1, geom2):
+
+    '''
+    Function for getting the geometric difference between two geometries
+    Input geometries are shapely geometries - e.g. LineStrings.
+    The resulting difference is also returned as a shapely geometry.
+    '''
+
+    geoms1 = [geom1]
+    geoms2 = [geom2]
+
+    geodf1 = gpd.GeoDataFrame(geometry=geoms1)
+
+    geodf2 = gpd.GeoDataFrame(geometry=geoms2)
+
+    geom_diff = geodf1.difference(geodf2).values[0]
+
+    return geom_diff
+#%%
+diff = get_geom_diff(line1, line2)
+# %%
