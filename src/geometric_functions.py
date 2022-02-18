@@ -1,3 +1,5 @@
+import geopandas as gpd
+
 def get_geom_diff(geom1, geom2):
 
     '''
