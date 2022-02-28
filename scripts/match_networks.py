@@ -410,19 +410,29 @@ def split_edge(line_to_split, split_line):
     print(nearest_point_start)
     print(nearest_point_end)
    
-    if nearest_point_start.within(line_to_split) == False:
-        pass
+    if nearest_point_start.within(line_to_split) == False or nearest_point_end.within(line_to_split) == False:
+        
+        new_nearest_start = snap(nearest_point_start,line_to_split, 0.01)
+        new_nearest_end= snap(nearest_point_end,line_to_split, 0.01)
 
-    if nearest_point_end.within(line_to_split) == False:
-        pass
+        assert new_nearest_start.within(line_to_split)
+        assert new_nearest_end.within(line_to_split)
 
-    # Clip geometry with nearest points
-    clip_points = MultiPoint([nearest_point_start, nearest_point_end])
+        clip_points = MultiPoint([new_nearest_start, new_nearest_end])
 
-    clipped_lines_geoms = split(line_to_split, clip_points)
+        clipped_lines_geoms = split(line_to_split, clip_points)
+    
+    else:
+        # Clip geometry with nearest points
+        clip_points = MultiPoint([nearest_point_start, nearest_point_end])
 
-    return clip_points, clipped_lines_geoms
+        clipped_lines_geoms = split(line_to_split, clip_points)
 
+    return clipped_lines_geoms
+
+# Problem - it works if the end point is moved but not if the nearest point is moved
+# Possibly because of differing accuraries??
+# I could just take the new line returned by both and then use their start/end points to clip??
 #%%
 def split_edge_buffer(line_to_split, split_line):
 
@@ -440,7 +450,7 @@ def split_edge_buffer(line_to_split, split_line):
    
     if nearest_point_start.within(line_to_split) == False or nearest_point_end.within(line_to_split) == False:
         new_line = LineString([nearest_point_start, nearest_point_end])
-        buff = new_line.buffer(0.0001)
+        buff = new_line.buffer(0.00001)
 
         #first_seg, buff_seg, last_seg 
         clipped_lines_geoms = split(line_to_split,buff)
@@ -452,13 +462,15 @@ def split_edge_buffer(line_to_split, split_line):
 
         clipped_lines_geoms = split(line_to_split, clip_points)
 
-    return clipped_lines_geoms
+    return clipped_lines_geoms, buff
 
 #%%
 #############################################
 geodk_line = LineString( [(1,1),(10,10)])
 
 osm_line = LineString([(1,2),(7,9)])
+
+#%%
 
 p, l = split_edge(line_to_split = geodk_line, split_line=osm_line)
 
@@ -467,6 +479,10 @@ p, l = split_edge(line_to_split = geodk_line, split_line=osm_line)
 osm_edge = LineString( [ (719828.246076221,6177474.258233718), (719868.4017477125,6177465.392409511) ])
 ref_edge = LineString( [ (719797.25,6177490.79), (719805.72,6177488.3), (719810.68,6177487.09), (719868.52,6177472.95) ])
 
+#%%
+test, buff_test = split_edge_buffer(line_to_split=ref_edge, split_line=osm_edge)
+
+#%%
 
 start_node = Point(osm_edge.coords[0])
 end_node = Point(osm_edge.coords[-1])
@@ -492,18 +508,20 @@ lines_list = []
 
 for index, row in osm_df.iterrows():
 
-    lines = split_edge_buffer(line_to_split=ref_edge, split_line=row.geometry)
+    lines = split_edge(line_to_split=ref_edge, split_line=row.geometry)
 
     print(len(lines.geoms))
+
+    #print(buff.area)
 
     print(lines.geoms[0].length)
 
     #points_gdf.at[index, 'geometry'] = points
 
-    lines_list.append(lines.geoms[0])
+    lines_list.append(lines.geoms[1])
  
 #%%
-lines_gdf = gpd.GeoDataFrame(index=osm_df.index, geometry=lines_list)
+lines_gdf = gpd.GeoDataFrame(index=osm_df.index, geometry=lines_list, crs=crs)
 
 #points_gdf['index'] = points_gdf.index
 lines_gdf['index'] = lines_gdf.index
@@ -513,7 +531,7 @@ engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
 #dbf.to_postgis(geodataframe=points_gdf, table_name='points', engine=engine)
 
-dbf.to_postgis(geodataframe=lines_gdf, table_name='lines', engine=engine)
+dbf.to_postgis(geodataframe=lines_gdf, table_name='lines2', engine=engine)
 
 # %%
 
