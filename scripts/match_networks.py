@@ -33,8 +33,8 @@ import pandas as pd
 import yaml
 from src import db_functions as dbf
 from src import geometric_functions as gf
-from shapely.ops import nearest_points, split, linemerge
-from shapely.geometry import Point, MultiPoint 
+from shapely.ops import nearest_points, split, linemerge, snap
+from shapely.geometry import Point, MultiPoint, LineString
 #%%
 
 with open(r'config.yml') as file:
@@ -178,6 +178,7 @@ for ref_index, row in matches.loc[matches.fot_id==1087315069].iterrows(): # TODO
 
             osm_edge = r.geometry # Get the geometry of this specific matched OSM edge
 
+            '''
             osm_start_node = Point(osm_edge.coords[0])
             osm_end_node = Point(osm_edge.coords[-1])
 
@@ -189,6 +190,10 @@ for ref_index, row in matches.loc[matches.fot_id==1087315069].iterrows(): # TODO
             clip_points = MultiPoint([nearest_point_start, nearest_point_end])
 
             clipped_lines_geoms = split(ref_edge, clip_points).geoms
+            
+            '''
+            clip_points, clipped_lines_geoms = split_edge(ref_edge, osm_edge)
+           
 
             # Check if line is clipped at all by checking how many geometries are returned by split function
             if len(clipped_lines_geoms) == 1:
@@ -388,3 +393,128 @@ for index, row in matches.iterrows():
         matches.at[index, 'matches_index'] = 0
         matches.at[index, 'matches_osmid'] = 0
 # %%
+
+def split_edge(line_to_split, split_line):
+
+    '''
+    Function for clipping one LineString to the extent of another LineString
+    '''
+
+    start_node = Point(split_line.coords[0])
+    end_node = Point(split_line.coords[-1])
+
+    # Get nearest point on reference geometry to start and end nodes of OSM match
+    org_point, nearest_point_start = nearest_points(start_node, line_to_split)
+    org_point2, nearest_point_end = nearest_points(end_node, line_to_split)
+
+    print(nearest_point_start)
+    print(nearest_point_end)
+   
+    if nearest_point_start.within(line_to_split) == False:
+        pass
+
+    if nearest_point_end.within(line_to_split) == False:
+        pass
+
+    # Clip geometry with nearest points
+    clip_points = MultiPoint([nearest_point_start, nearest_point_end])
+
+    clipped_lines_geoms = split(line_to_split, clip_points)
+
+    return clip_points, clipped_lines_geoms
+
+#%%
+def split_edge_buffer(line_to_split, split_line):
+
+    '''
+    Function for clipping one LineString to the extent of another LineString
+    '''
+
+    start_node = Point(split_line.coords[0])
+    end_node = Point(split_line.coords[-1])
+
+    # Get nearest point on reference geometry to start and end nodes of OSM match
+    org_point, nearest_point_start = nearest_points(start_node, line_to_split)
+    org_point2, nearest_point_end = nearest_points(end_node, line_to_split)
+
+   
+    if nearest_point_start.within(line_to_split) == False or nearest_point_end.within(line_to_split) == False:
+        new_line = LineString([nearest_point_start, nearest_point_end])
+        buff = new_line.buffer(0.0001)
+
+        #first_seg, buff_seg, last_seg 
+        clipped_lines_geoms = split(line_to_split,buff)
+
+    else:
+
+        # Clip geometry with nearest points
+        clip_points = MultiPoint([nearest_point_start, nearest_point_end])
+
+        clipped_lines_geoms = split(line_to_split, clip_points)
+
+    return clipped_lines_geoms
+
+#%%
+#############################################
+geodk_line = LineString( [(1,1),(10,10)])
+
+osm_line = LineString([(1,2),(7,9)])
+
+p, l = split_edge(line_to_split = geodk_line, split_line=osm_line)
+
+#%%
+
+osm_edge = LineString( [ (719828.246076221,6177474.258233718), (719868.4017477125,6177465.392409511) ])
+ref_edge = LineString( [ (719797.25,6177490.79), (719805.72,6177488.3), (719810.68,6177487.09), (719868.52,6177472.95) ])
+
+
+start_node = Point(osm_edge.coords[0])
+end_node = Point(osm_edge.coords[-1])
+
+# Get nearest point on reference geometry to start and end nodes of OSM match
+org_point, nearest_point_start = nearest_points(start_node, ref_edge)
+org_point2, nearest_point_end = nearest_points(end_node, ref_edge)
+
+print(nearest_point_start)
+print(nearest_point_end)
+
+nearest_buff = nearest_point_end.buffer(0.001)
+
+print(nearest_buff.intersects(ref_edge))
+
+test = snap(nearest_point_end, ref_edge, 0.01)
+
+#%%
+
+#points_gdf = gpd.GeoDataFrame(index=osm_df.index, columns=['geometry','index'], crs=crs)
+
+lines_list = []
+
+for index, row in osm_df.iterrows():
+
+    lines = split_edge_buffer(line_to_split=ref_edge, split_line=row.geometry)
+
+    print(len(lines.geoms))
+
+    print(lines.geoms[0].length)
+
+    #points_gdf.at[index, 'geometry'] = points
+
+    lines_list.append(lines.geoms[0])
+ 
+#%%
+lines_gdf = gpd.GeoDataFrame(index=osm_df.index, geometry=lines_list)
+
+#points_gdf['index'] = points_gdf.index
+lines_gdf['index'] = lines_gdf.index
+
+#%%
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+
+#dbf.to_postgis(geodataframe=points_gdf, table_name='points', engine=engine)
+
+dbf.to_postgis(geodataframe=lines_gdf, table_name='lines', engine=engine)
+
+# %%
+
+#%%
