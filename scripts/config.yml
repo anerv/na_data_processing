@@ -12,3 +12,8 @@ db_user: 'postgres'
 db_port: '5432'
 db_host: 'localhost'
 db_password: 'aneitu'
+
+quality_check: True
+quality_data: '../data/' # Data to be used for quality metrics for data matching
+
+add_unmatched: True
