@@ -22,7 +22,6 @@ import pandas as pd
 import yaml
 from src import db_functions as dbf
 from src import geometric_functions as gf
-from shapely.ops import linemerge
 #%%
 
 with open(r'config.yml') as file:
@@ -99,7 +98,12 @@ ref_id_col=ref_id_col, crs=crs)
 #%% 
 # TODO: Quality check (optional)
 # If you have data on correct matches - check result against this and compute score
+
 if quality_check:
+    # Check how many where correct compared to reference data
+    # Compute percentage of correct
+    # Compute percentage of not matched
+    # Compute percentage of wrongly matched
     pass
 
 #%%
@@ -121,9 +125,44 @@ def update_osm():
 if add_unmatched:
     pass
 
-def add_unmatched_data():
-    pass
+def add_unmatched_data(osm_graph, unmatched_graph):
 
+    # Should check whether the unmatched network is of the same graph type as OSM network
+
+    # Assert that they are the same reference system
+
+    combined_graph = None
+
+    return combined_graph
+
+def create_nx_data():
+    # Function of converting geopandas dataframe to NX structure - or OSMNX??
+
+    # Convert to network structure
+
+    # Get nodes
+
+    # Create 'fake' osmid for nodes - make sure that they are not identical to any existing IDs! Add a letter to distinguish them?
+
+    # Create x y coordinate columns
+
+    # Create multiindex in u v key format
+
+    nx_graph = None
+
+    return nx_graph
+    ''''
+    
+     However, you can convert arbitrary node and edge GeoDataFrames as long as 
+    1) gdf_nodes is uniquely indexed by osmid, 
+    2) gdf_nodes contains x and y coordinate columns representing node geometries, 
+    3) gdf_edges is uniquely multi-indexed by u, v, key (following normal MultiDiGraph structure). 
+    This allows you to load any node/edge shapefiles or GeoPackage layers as GeoDataFrames then convert them to a MultiDiGraph for graph analysis. 
+    Note that any geometry attribute on gdf_nodes is discarded since x and y provide the necessary node geometry information instead.
+    
+    '''
+   
+    
 #%%
 #######################################################
 
