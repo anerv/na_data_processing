@@ -9,19 +9,18 @@ But it is also possible to use for identifying edges in the reference_data datas
 
 # TODO: Functionality for doing analysis grid by grid
 
-# TODO: Function for adding unmatched to dataset?
-
 # TODO: Rewrite to not use postgres?
 
 # Problem with curved lines
 # Problem when OSM is much longer? - Use simplified networks!
 
 #%%
+from configparser import DuplicateOptionError
 import geopandas as gpd
 import pandas as pd
 import yaml
 from src import db_functions as dbf
-from src import geometric_functions as gf
+from src import matching_functions as mf
 #%%
 
 with open(r'config.yml') as file:
@@ -74,11 +73,11 @@ ref_id_col = 'fot_id'
 
 #%%
 # Find matches based on buffer distance
-matches = gf.find_matches_buffer(reference_data=reference_data, osm_data=osm_edges, col_ref_id =ref_id_col, dist=12) 
+matches = mf.find_matches_buffer(reference_data=reference_data, osm_data=osm_edges, col_ref_id =ref_id_col, dist=12) 
 
 #%%
 # Find exact matches 
-final_matches, partially_matched = gf.find_exact_matches(matches=matches, osm_edges=osm_edges, reference_data=reference_data, 
+final_matches, partially_matched = mf.find_exact_matches(matches=matches, osm_edges=osm_edges, reference_data=reference_data, 
 ref_id_col=ref_id_col, crs=crs)
 
 #%%
@@ -94,7 +93,6 @@ ref_id_col=ref_id_col, crs=crs)
 # For how long? Look at results from each run - are they valid?
 
 
-
 #%% 
 # TODO: Quality check (optional)
 # If you have data on correct matches - check result against this and compute score
@@ -107,25 +105,31 @@ if quality_check:
     pass
 
 #%%
-# TODO: Add new info to OSM data
-# Compute how many have been updated (i.e. where not in OSM bike before)
+# Update OSM based on matches
 
-def update_osm():
-    # Inputs need to be matched data
-    # Ref data
-    # Osm data 
-    # Column in osm data to be updated - possibly a new one
-    # Column in GeoDk to take updates from (possibly several?)
-    pass
+ref_col = 'vejklasse'
+new_col = 'cycling_infra'
+
+updated_osm = mf.update_osm(final_matches, osm_edges, reference_data, ref_col=ref_col, new_col=new_col)
+
+#%%#%%
 
 #%%
 # TODO: Add unmatched to dataset
 # Not just a question of adding to database - should create uniform col names, geometric structure (i.e. simplified or not)
 
 if add_unmatched:
+    
+    # Run function for converting to osmnx format
+
+    # Run function for adding data
+
+    # How will this work on a grid by grid basis? Maybe not at all?
+    # Test for a city and then for increasing areas
+
     pass
 
-def add_unmatched_data(osm_graph, unmatched_graph):
+def add_unmatched_data(osm_graph, unmatched_graph, column_dictionary):
 
     # Should check whether the unmatched network is of the same graph type as OSM network
 
@@ -135,33 +139,6 @@ def add_unmatched_data(osm_graph, unmatched_graph):
 
     return combined_graph
 
-def create_nx_data():
-    # Function of converting geopandas dataframe to NX structure - or OSMNX??
-
-    # Convert to network structure
-
-    # Get nodes
-
-    # Create 'fake' osmid for nodes - make sure that they are not identical to any existing IDs! Add a letter to distinguish them?
-
-    # Create x y coordinate columns
-
-    # Create multiindex in u v key format
-
-    nx_graph = None
-
-    return nx_graph
-    ''''
-    
-     However, you can convert arbitrary node and edge GeoDataFrames as long as 
-    1) gdf_nodes is uniquely indexed by osmid, 
-    2) gdf_nodes contains x and y coordinate columns representing node geometries, 
-    3) gdf_edges is uniquely multi-indexed by u, v, key (following normal MultiDiGraph structure). 
-    This allows you to load any node/edge shapefiles or GeoPackage layers as GeoDataFrames then convert them to a MultiDiGraph for graph analysis. 
-    Note that any geometry attribute on gdf_nodes is discarded since x and y provide the necessary node geometry information instead.
-    
-    '''
-   
     
 #%%
 #######################################################
@@ -178,3 +155,4 @@ connection.close()
 #%%
 #############################################
 # %%
+# Compute how much have been updated
