@@ -8,6 +8,7 @@ Requires a postgres db with postgis extension activated!
 '''
 
 # TODO: remove unused columns from osm data, load other osm data (e.g. traffic lights)
+# TODO: use simplified version of OSM!!
 #%%
 import pyrosm
 import yaml
