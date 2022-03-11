@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.spatial.distance import directed_hausdorff
 from shapely.ops import nearest_points, split, linemerge, snap
 from shapely.geometry import Point, MultiPoint, LineString
-
+import numpy as np
 
 # TODO: Add tests!
 
@@ -438,6 +438,62 @@ def find_exact_matches(matches, osm_edges, reference_data, ref_id_col, angular_t
     
     return final_matches, ref_part_matched
 
+
+def update_osm(matches, osm_data, ref_data, ref_col, new_col, compare_col=None):
+
+    '''
+    Function for updating OSM based on reference. 
+    Current version only accepts one column for reference data and one column in OSM data.
+
+    Parameters
+    ----------
+    matched_data: GeoDataFrame
+        Index and ids of matches
+
+    osm_data: GeoDataFrame
+        OSM edges to be updated
+
+    ref_data: GeoDataFrame
+        Reference data with attributes to be transfered to OSM data
+
+    Returns
+    -------
+    
+    '''
+
+    osm_data[new_col] = None
+
+    ref_matches = ref_data[ref_col].loc[matches.index].values
+
+    osm_data.loc[matches.osm_index, new_col] = ref_matches
+
+    count_updates = len(osm_edges.loc[final_matches.osm_index])
+
+    print(f'{count_updates} OSM edges were updated!')
+
+    if compare_col:
+        diff = count_updates - np.count_nonzero(osm_edges[compare_col])
+        print(f'{diff} OSM edges did not already have this information!')
+
+    # Check for conflicting updates
+    count_conflicts = 0
+
+    duplicates = matches.osm_index.value_counts()
+    duplicates = duplicates[duplicates > 1]
+    dup_index = duplicates.index.to_list()
+
+    for i in dup_index:
+
+        same_matches = matches.loc[matches.osm_index == i].index
+        ref_values = ref_data.loc[same_matches, ref_col]
+        
+        if len(ref_values.unique()) > 1:
+         
+            count_conflicts += 1
+        
+    print(f'{count_conflicts} OSM edges had conflicting matches!')
+
+    return osm_data
 
 
 if __name__ == '__main__':
