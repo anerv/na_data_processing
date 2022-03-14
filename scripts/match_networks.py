@@ -9,23 +9,22 @@ But it is also possible to use for identifying edges in the reference_data datas
 
 # TODO: Functionality for doing analysis grid by grid
 
-# TODO: Rewrite to not use postgres?
-
-# Problem with curved lines
-# Problem when OSM is much longer? - Use simplified networks!
 
 #%%
-from configparser import DuplicateOptionError
+import pickle
 import geopandas as gpd
 import pandas as pd
 import yaml
 from src import db_functions as dbf
 from src import matching_functions as mf
+import osmnx as ox
 #%%
 
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
 
+    use_postgres = parsed_yaml_file['use_postgres']
+    
     crs = parsed_yaml_file['CRS']
 
     db_name = parsed_yaml_file['db_name']
@@ -42,35 +41,68 @@ with open(r'config.yml') as file:
 print('Settings loaded!')
 
 #%%
-connection = dbf.connect_pg(db_name, db_user, db_password)
+if use_postgres:
+    
+    print('Connecting to DB!')
+    connection = dbf.connect_pg(db_name, db_user, db_password)
 
-get_osm = '''SELECT * FROM osm_edges WHERE highway IN ('residential', 'service', 'primary', 'tertiary',
-       'tertiary_link', 'secondary', 'cycleway', 'path', 'living_street',
-       'unclassified', 'primary_link', 'motorway_link', 'motorway', 'track',
-       'secondary_link', 'pathway', 'trunk_link', 'trunk');'''
+    get_osm = '''SELECT * FROM osm_edges WHERE highway IN ('residential', 'service', 'primary', 'tertiary',
+        'tertiary_link', 'secondary', 'cycleway', 'path', 'living_street',
+        'unclassified', 'primary_link', 'motorway_link', 'motorway', 'track',
+        'secondary_link', 'pathway', 'trunk_link', 'trunk');'''
 
-get_geodk = 'SELECT * FROM geodk_bike;'
+    get_osm_nodes = 'SELECT * FROM osm_nodes;'
 
-get_grid = 'SELECT * FROM grid;'
+    get_geodk = 'SELECT * FROM geodk_bike;'
 
-osm_edges = gpd.GeoDataFrame.from_postgis(get_osm, connection, geom_col='geometry' )
+    get_grid = 'SELECT * FROM grid;'
 
-reference_data = gpd.GeoDataFrame.from_postgis(get_geodk, connection, geom_col='geometry' )
+    osm_edges = gpd.GeoDataFrame.from_postgis(get_osm, connection, geom_col='geometry' )
 
-grid = gpd.GeoDataFrame.from_postgis(get_grid, connection, geom_col='geometry')
+    osm_nodes = gpd.GeoDataFrame.from_postgis(get_osm_nodes, geom_col='geometry') #TODO: Only keep nodes used by filtered osm_edges
+
+    reference_data = gpd.GeoDataFrame.from_postgis(get_geodk, connection, geom_col='geometry' )
+
+    grid = gpd.GeoDataFrame.from_postgis(get_grid, connection, geom_col='geometry')
+
+else:
+
+    print('Loading files!')
+    #with open('../data/osm_reference_match.pickle', 'rb') as fp:
+        #final_matches2 = pickle.load(fp)
+
+    with open('../data/osm_edges.pickle', 'rb') as fp:
+        osm_edges = pickle.load(fp)
+
+    with open('../data/reference_data.pickle', 'rb') as fp:
+        reference_data = pickle.load(fp)
+
+    with open('../data/osm_nodes.pickle', 'rb') as fp:
+        reference_data = pickle.load(fp)
+
+    
+    highway_values = ['residential', 'service', 'primary', 'tertiary',
+            'tertiary_link', 'secondary', 'cycleway', 'path', 'living_street',
+            'unclassified', 'primary_link', 'motorway_link', 'motorway', 'track',
+            'secondary_link', 'pathway', 'trunk_link', 'trunk'
+            ]
+
+    osm_edges = osm_edges.loc[osm_edges['highway'].isin(highway_values)]
+
+    reference_data = reference_data.loc[reference_data['vejklasse'].isin(['Cykelbane langs vej', 'Cykelsti langs vej'])]
+
 
 assert osm_edges.crs == crs
 assert reference_data.crs == crs
-assert grid.crs == crs
+#assert grid.crs == crs
 
 print(f'Number of rows in osm_edge table: {len(osm_edges)}')
 print(f'Number of rows in reference_data table: {len(reference_data)}')
-print(f'Number of rows in grid table: {len(grid)}')
+#print(f'Number of rows in grid table: {len(grid)}')
 
 #%%
 # Define name of id col in ref dataset
 ref_id_col = 'fot_id'
-
 #%%
 # Find matches based on buffer distance
 matches = mf.find_matches_buffer(reference_data=reference_data, osm_data=osm_edges, col_ref_id =ref_id_col, dist=12) 
@@ -88,10 +120,12 @@ ref_id_col=ref_id_col, crs=crs)
 
 # Repeat buffer operation for this step
 
-# Split multilinestrings in partially matched into two rows 
+# Split multilinestrings in partially matched into individual LineStrings
+partially_matched_split = mf.explode_multilinestrings(partially_matched)
 
 # For how long? Look at results from each run - are they valid?
 
+#%%
 
 #%% 
 # TODO: Quality check (optional)
@@ -112,16 +146,17 @@ new_col = 'cycling_infra'
 
 updated_osm = mf.update_osm(final_matches, osm_edges, reference_data, ref_col=ref_col, new_col=new_col)
 
-#%%#%%
-
 #%%
 # TODO: Add unmatched to dataset
 # Not just a question of adding to database - should create uniform col names, geometric structure (i.e. simplified or not)
+# Unmatched are those not matched when rerunning partial matches
+
+# TODO: Change to actual unmatched - this is just for testing
+unmatched = partially_matched_split.copy(deep=True)
 
 if add_unmatched:
     
-    # Run function for converting to osmnx format
-
+   
     # Run function for adding data
 
     # How will this work on a grid by grid basis? Maybe not at all?
@@ -129,11 +164,39 @@ if add_unmatched:
 
     pass
 
-def add_unmatched_data(osm_graph, unmatched_graph, column_dictionary):
+
+#%%
+import networkx as nx
+
+col_dictionary = {
+
+}
+
+def add_unmatched_data(osm_edges, osm_nodes, unmatched_edges):
 
     # Should check whether the unmatched network is of the same graph type as OSM network
 
     # Assert that they are the same reference system
+
+    if osm_edges.crs != unmatched_edges.crs:
+
+        unmatched_edges = unmatched_edges.to_crs(osm_edges.crs)
+
+        assert osm_edges.crs == unmatched_edges.crs
+    
+    # Run function for converting to osmnx format
+    unmatched_graph = mf.create_osmnx_graph(unmatched_edges)
+
+    # Create new graph object from OSM edges
+
+    # Read nodes
+
+    # Recreate multiindex
+
+    osm_graph = ox.graph_from_gdfs(osm_nodes, osm_edges)
+
+    assert unmatched_graph.crs == osm_graph.crs, 'CRS do not match!'
+
 
     combined_graph = None
 
@@ -153,6 +216,24 @@ dbf.to_postgis(geodataframe=not_matched, table_name='not_matched', engine=engine
 connection.close()
 
 #%%
+# Save results
+final_matches.to_file('../data/osm_reference_match.gpkg', layer='final_matches', driver='GPKG')
+partially_matched.to_file('../data/osm_reference_match.gpkg', layer='partially_matched', driver='GPKG')
+updated_osm.to_file('../data/osm_reference_match.gpkg', layer='updated_osm', driver='GPKG')
+#%%
+with open('../data/osm_reference_match.pickle', 'wb') as handle:
+    pickle.dump(final_matches, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+with open('../data/buffer_matches.pickle', 'wb') as handle:
+    pickle.dump(matches, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+with open('../data/partial_matches.pickle', 'wb') as handle:
+    pickle.dump(partially_matched, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+with open('../data/updated_osm.pickle', 'wb') as handle:
+    pickle.dump(updated_osm, handle, protocol=pickle.HIGHEST_PROTOCOL)
+#%%
 #############################################
+
+
 # %%
-# Compute how much have been updated
