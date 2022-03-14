@@ -1,5 +1,7 @@
 #This file contains setting used in the data processing
 
+use_postgres: False
+
 study_area: 'testarea'
 osm_fp: '../data/planet_kbh.osm.pbf'
 geodk_fp: '../data/vejmidte_brudt_subset.gpkg'
@@ -14,6 +16,7 @@ db_host: 'localhost'
 db_password: 'aneitu'
 
 quality_check: True
-quality_data: '../data/' # Data to be used for quality metrics for data matching
+quality_data: '../data/.csv' # Data to be used for quality metrics for data matching
 
 add_unmatched: True
+
