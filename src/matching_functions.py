@@ -343,7 +343,7 @@ def find_exact_matches(matches, osm_edges, reference_data, ref_id_col, angular_t
                 ref_edge = linemerge(ref_edge) # This step assumes that MultiLineString do not have gaps!
 
             # Get the original geometries that intersected this reference_data geometry's buffer
-            osm_df = osm_edges[['osmid','highway','name','geometry']].iloc[row.matches_index].copy(deep=True)
+            osm_df = osm_edges[['osmid','highway','name','geometry']].loc[row.matches_index].copy(deep=True)
 
             osm_df['hausdorff_dist'] = None
             osm_df['angle'] = None
