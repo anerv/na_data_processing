@@ -4,29 +4,14 @@ import pandas as pd
 from scipy.spatial.distance import directed_hausdorff
 from shapely.ops import nearest_points, split, linemerge, snap
 from shapely.geometry import Point, MultiPoint, LineString
-import numpy as np
+import momepy
+import osmnx as ox
+
 
 # TODO: Add tests!
 
-############
 
-"""
-    Counts the number of times a line occurs. Case-sensitive.
-
-    Parameters
-    ----------
-    f: file
-        the file to scan
-    line: str
-        the line to count
-
-    Returns
-    -------
-    int
-        the number of times the line occurs.
-    """
-
-######
+##############################
 
 def get_geom_diff(geom1, geom2):
 
@@ -63,6 +48,7 @@ def get_geom_diff(geom1, geom2):
 
     return geom_diff
 
+##############################
 
 def get_angle(linestring1, linestring2):
 
@@ -97,6 +83,7 @@ def get_angle(linestring1, linestring2):
 
     return angle_deg
 
+##############################
 
 def get_hausdorff_dist(osm_edge, ref_edge):
 
@@ -126,6 +113,7 @@ def get_hausdorff_dist(osm_edge, ref_edge):
 
     return hausdorff_dist
 
+##############################
 
 def clip_new_edge(line_to_split, split_line):
 
@@ -163,6 +151,7 @@ def clip_new_edge(line_to_split, split_line):
 
     return clipped_line
 
+##############################
 
 def find_matches_buffer(reference_data, osm_data, col_ref_id, dist):
 
@@ -226,6 +215,8 @@ def find_matches_buffer(reference_data, osm_data, col_ref_id, dist):
     return matches
 
 
+##############################
+
 def save_best_match(osm_index, ref_index, ref_id_col, row, potential_matches, final_matches, partially_matched, clipped_edges, pct_removed_threshold, meters_removed_threshold):
 
     '''
@@ -285,6 +276,7 @@ def save_best_match(osm_index, ref_index, ref_id_col, row, potential_matches, fi
         partially_matched.at[ref_index, 'meters_removed'] = clipped_edges.loc[osm_index, 'pct_removed']
         partially_matched.at[ref_index, 'pct_removed'] = clipped_edges.loc[osm_index, 'meters_removed']
 
+##############################
 
 def find_exact_matches(matches, osm_edges, reference_data, ref_id_col, angular_threshold=20, hausdorff_threshold=15, pct_removed_threshold=20, meters_removed_threshold=5, crs='EPSG:25832'):
 
@@ -438,11 +430,12 @@ def find_exact_matches(matches, osm_edges, reference_data, ref_id_col, angular_t
     
     return final_matches, ref_part_matched
 
+##############################
 
-def update_osm(matches, osm_data, ref_data, ref_col, new_col, compare_col=None):
+def update_osm(matches, osm_data, ref_data, ref_col, new_col, compare_col= None):
 
     '''
-    Function for updating OSM based on reference. 
+    Function for updating OSM based on matches with reference dataset. 
     Current version only accepts one column for reference data and one column in OSM data.
 
     Parameters
@@ -467,12 +460,12 @@ def update_osm(matches, osm_data, ref_data, ref_col, new_col, compare_col=None):
 
     osm_data.loc[matches.osm_index, new_col] = ref_matches
 
-    count_updates = len(osm_edges.loc[final_matches.osm_index])
+    count_updates = len(osm_data.loc[matches.osm_index])
 
     print(f'{count_updates} OSM edges were updated!')
 
     if compare_col:
-        diff = count_updates - np.count_nonzero(osm_edges[compare_col])
+        diff = count_updates - np.count_nonzero(osm_data[compare_col])
         print(f'{diff} OSM edges did not already have this information!')
 
     # Check for conflicting updates
@@ -494,6 +487,109 @@ def update_osm(matches, osm_data, ref_data, ref_col, new_col, compare_col=None):
     print(f'{count_conflicts} OSM edges had conflicting matches!')
 
     return osm_data
+
+##############################
+
+def create_node_index(x, index_length):
+    '''
+    Function for creating unique index column of specific length based on another shorter column.
+    '''
+
+    x = str(x)
+    x  = x.zfill(index_length)
+    x = x + 'R'
+
+    return x
+
+##############################
+
+def find_parallel_edges(edges):
+
+    '''
+    Check for parallel edges in a pandas DataFrame with edges, including columns u with start node index and v with end node index.
+    If two edges have the same u-v pair, the column 'key' is updated to ensure that the u-v-key combination can uniquely identify an edge.
+    '''
+
+    # Find edges with duplicate node pairs
+    parallel = edges[edges.duplicated(subset=['u','v'])]
+
+    edges.loc[parallel.index, 'key'] = 1 #Set keys to 1
+
+    assert len(edges[edges.duplicated(subset=['u','v','key'])]) == 0, 'Edges not uniquely indexed by u,v,key!'
+
+    return edges
+
+##############################
+
+def create_osmnx_graph(gdf, directed=True):
+
+    ''''
+    Function for  converting a geodataframe with LineStrings to a NetworkX graph object (MultiDiGraph), which follows the data structure required by OSMnx.
+    (I.e. Nodes indexed by osmid, nodes contain columns with x and y coordinates, edges is multiindexed by u, v, key).
+    Converts MultiLineStrings to LineStrings - assumes that there are no gaps between the lines in the MultiLineString
+
+    OBS! Current version does not fix topology.
+
+    Parameters
+    ----------
+    gdf: GeoDataFrame
+        The data to be converted to a graph format
+    directed: bool
+        Whether the resulting graph should be directed or not. Directionality is based on the order of the coordinates.
+
+    Returns
+    -------
+    graph: NetworkX MultiDiGraph object
+        The original data in a NetworkX graph format.
+
+    '''
+
+    gdf['geometry'] = gdf['geometry'].apply( lambda x: linemerge(x) if x.geom_type == 'MultiLineString' else x) 
+
+    G = momepy.gdf_to_nx(gdf, approach='primal', directed=directed)
+
+    nodes, edges = momepy.nx_to_gdf(G)
+
+    # Create columns and index as required by OSMnx
+    index_length = len(str(nodes['nodeID'].iloc[-1].item()))
+    nodes['osmid'] = nodes['nodeID'].apply(lambda x: create_node_index(x, index_length))
+
+    # Create x y coordinate columns
+    nodes['x'] = nodes.geometry.x
+    nodes['y'] = nodes.geometry.y
+
+    edges['u'] = nodes['osmid'].loc[edges.node_start].values
+    edges['v'] = nodes['osmid'].loc[edges.node_end].values
+
+    nodes.set_index('osmid', inplace=True)
+
+    edges['key'] = 0
+
+    edges = find_parallel_edges(edges)
+
+    # Create multiindex in u v key format
+    edges = edges.set_index(['u', 'v', 'key'])
+
+    # For ox simplification to work, edge geometries must be dropped. Edge geometries is defined by their start and end node
+    edges.drop(['geometry'], axis=1, inplace=True)
+
+
+    G_ox = ox.graph_from_gdfs(nodes, edges)
+
+   
+    return G_ox
+
+##############################
+
+def explode_multilinestrings(gdf):
+
+    individual_linestrings = gdf.explode(index_parts=True)
+
+    new_ix_col = ['_'.join(map(str, i)) for i in zip(individual_linestrings.index.get_level_values(0), individual_linestrings.index.get_level_values(1))]
+    individual_linestrings['index_split'] =  new_ix_col
+    individual_linestrings.set_index('index_split', inplace=True)
+
+    return individual_linestrings
 
 
 if __name__ == '__main__':
