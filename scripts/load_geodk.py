@@ -7,9 +7,12 @@ Required an exisinting db with postgis extension
 import geopandas as gpd
 import yaml
 from src import db_functions as dbf
+import pickle
 # %%
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
+
+    use_postgres = parsed_yaml_file['use_postgres']
 
     geodk_fp = parsed_yaml_file['geodk_fp']
 
@@ -39,18 +42,26 @@ geodk = geodk.to_crs(crs)
 
 assert geodk.crs == crs
 #%%
-connection = dbf.connect_pg(db_name, db_user, db_password)
+if use_postgres:
 
-engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+    connection = dbf.connect_pg(db_name, db_user, db_password)
 
-dbf.to_postgis(geodataframe=geodk, table_name='vm_brudt', engine=engine)
+    engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-#%%
-q = 'SELECT fot_id, feat_type FROM vm_brudt LIMIT 10;'
+    dbf.to_postgis(geodataframe=geodk, table_name='vm_brudt', engine=engine)
 
-test = dbf.run_query_pg(q, connection)
 
-print(test)
+    q = 'SELECT fot_id, feat_type FROM vm_brudt LIMIT 10;'
 
-connection.close()
+    test = dbf.run_query_pg(q, connection)
+
+    print(test)
+
+    connection.close()
+
+else:
+ 
+    with open('../data/reference_data.pickle', 'wb') as handle:
+        pickle.dump(geodk, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 # %%
