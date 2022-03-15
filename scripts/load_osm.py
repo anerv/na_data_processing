@@ -16,6 +16,7 @@ import osmnx as ox
 from src import db_functions as dbf
 import pickle
 from src import simplification_functions as sf
+from src import matching_functions as mf
 #%%
 
 with open(r'config.yml') as file:
@@ -48,32 +49,16 @@ nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=
 
 G = osm.to_graph(nodes, edges, graph_type="networkx", retain_all=True)
 
-G = ox.get_undirected(G)
-
-G = ox.project_graph(G, to_crs=crs)
-
 #%%
-
+# Convert to index format used by osmnx
 ox_nodes, ox_edges = ox.graph_to_gdfs(G)
 
-ox_edges.columns = ox_edges.columns.str.lower()
-ox_nodes.columns = ox_nodes.columns.str.lower()
-
-edge_cols = ox_edges.columns.to_list()
-
-new_edge_cols = [c.replace(':','_') for c in edge_cols]
-
-ox_edges.columns = new_edge_cols
-
-node_cols = ox_nodes.columns
-
-new_node_cols = [c.replace(':','_') for c in node_cols]
-
-ox_nodes.columns = new_node_cols
+ox_edges = mf.clean_col_names(ox_edges)
+ox_nodes = mf.clean_col_names(ox_nodes)
 
 #%%
+# Add attribute on whether cycling infra exist or not (to be used by e.g. simplification function)
 ox_edges['cycling_infra'] = 'no'
-
 
 queries = ["highway == 'cycleway'",
         "highway == 'living_street'",
@@ -92,61 +77,54 @@ for q in queries:
 
     ox_edges.loc[ox_filtered.index, 'cycling_infra'] = 'yes'
 
+ox_edges.cycling_infra.value_counts()
+
 #%%  
-# Recreate graph with new attribute to simplify (type is now MultiDiGraph)
-graph = ox.graph_from_gdfs(ox_nodes, ox_edges)
+# Recreate graph with new attribute to simplify (type is MultiDiGraph)
+G_updated = ox.graph_from_gdfs(ox_nodes, ox_edges)
 
-#%%
-g_sim = sf.simplify_graph(graph, attributes = 'cycling_infra')
-#%%
+G_sim = sf.simplify_graph(G_updated, attributes = ['cycling_infra','highway'])
+
+# Get undirected now
+G_sim_un = ox.get_undirected(G_sim)
+
+# Project to project crs
+G_sim_un = ox.project_graph(G_sim_un, to_crs=crs)
+
+
 # Recreate ox_edges and nodes to be used in matching process
+ox_nodes_s, ox_edges_s = ox.graph_to_gdfs(G_sim_un)
 
-ox_nodes, ox_edges = ox.graph_to_gdfs(g_sim)
-
-ox_edges.columns = ox_edges.columns.str.lower()
-ox_nodes.columns = ox_nodes.columns.str.lower()
-
-edge_cols = ox_edges.columns.to_list()
-
-new_edge_cols = [c.replace(':','_') for c in edge_cols]
-
-ox_edges.columns = new_edge_cols
-
-node_cols = ox_nodes.columns
-
-new_node_cols = [c.replace(':','_') for c in node_cols]
-
-ox_nodes.columns = new_node_cols
 #%%
-# Create unique osmid col
-ox_edges['old_osmid'] = ox_edges.osmid
+# Create unique id
+ox_edges_s['old_osmid'] = ox_edges_s.osmid
 
-ox_edges.reset_index(inplace=True)
+ox_edges_s.reset_index(inplace=True)
 
 ids = []
-for i in range(1000, 1000+len(ox_edges)):
+for i in range(1000, 1000+len(ox_edges_s)):
     ids.append(i)
 
-ox_edges.osmid = ids
+ox_edges_s.osmid = ids
 
-assert len(ox_edges.osmid.unique()) == len(ox_edges)
+assert len(ox_edges_s.osmid.unique()) == len(ox_edges_s)
 
-assert ox_edges.crs == crs, 'Data is in wrong crs!'
+assert ox_edges_s.crs == crs, 'Data is in wrong crs!'
 
 #%%
 if use_postgres:
 
     print('Saving data to PostgreSQL!')
 
-    ox_nodes.reset_index(inplace=True, drop=True)
+    ox_nodes_s.reset_index(inplace=True, drop=True)
 
     connection = dbf.connect_pg(db_name, db_user, db_password)
 
     engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-    dbf.to_postgis(geodataframe=ox_edges, table_name='osm_edges', engine=engine)
+    dbf.to_postgis(geodataframe=ox_edges_s, table_name='osm_edges', engine=engine)
 
-    dbf.to_postgis(ox_nodes, 'osm_nodes', engine)
+    dbf.to_postgis(ox_nodes_s, 'osm_nodes', engine)
 
     q = 'SELECT osmid, name, highway FROM osm_edges LIMIT 10;'
 
@@ -162,11 +140,10 @@ else:
 
     ox.save_graphml(G, filepath='../data/graph_osm.graphml')
 
-    with open('../data/osm_edges.pickle', 'wb') as handle:
-        pickle.dump(ox_edges, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open('../data/osm_edges_sim.pickle', 'wb') as handle:
+        pickle.dump(ox_edges_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open('../data/osm_nodes.pickle', 'wb') as handle:
-        pickle.dump(nodes, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
+    with open('../data/osm_nodes_sim.pickle', 'wb') as handle:
+        pickle.dump(ox_nodes_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
 #%%
 # Load other data from OSM? E.g. traffic lights
