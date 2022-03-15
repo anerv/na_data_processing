@@ -8,7 +8,7 @@ Requires a postgres db with postgis extension activated if the postgres option i
 '''
 
 # TODO: remove unused columns from osm data, load other osm data (e.g. traffic lights)
-# TODO: use simplified version of OSM!!
+
 #%%
 import pyrosm
 import yaml
@@ -80,8 +80,8 @@ for q in queries:
 ox_edges.cycling_infra.value_counts()
 
 #%%  
-# Recreate graph with new attribute to simplify (type is MultiDiGraph)
-G_updated = ox.graph_from_gdfs(ox_nodes, ox_edges)
+# Recreate graph with new attribute to simplify 
+G_updated = ox.graph_from_gdfs(ox_nodes, ox_edges) # type is MultiDiGraph
 
 G_sim = sf.simplify_graph(G_updated, attributes = ['cycling_infra','highway'])
 
@@ -138,7 +138,7 @@ else:
 
     print('Saving data to file!')
 
-    ox.save_graphml(G, filepath='../data/graph_osm.graphml')
+    ox.save_graphml(G_sim_un, filepath='../data/graph_osm.graphml')
 
     with open('../data/osm_edges_sim.pickle', 'wb') as handle:
         pickle.dump(ox_edges_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
