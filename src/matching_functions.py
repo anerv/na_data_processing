@@ -591,6 +591,22 @@ def explode_multilinestrings(gdf):
 
     return individual_linestrings
 
+##############################
+
+def clean_col_names(df):
+    '''
+    Remove upper-case letters and : from OSM key names
+    '''
+    df.columns = df.columns.str.lower()
+
+    df_cols = df.columns.to_list()
+
+    new_cols = [c.replace(':','_') for c in df_cols]
+
+    df.columns = new_cols
+
+    return df
+    
 
 if __name__ == '__main__':
     pass
