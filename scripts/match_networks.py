@@ -19,21 +19,13 @@ import yaml
 from src import db_functions as dbf
 from src import matching_functions as mf
 import osmnx as ox
-
-import geopandas as gpd
 import numpy as np
-import pandas as pd
 from scipy.spatial.distance import directed_hausdorff
 from shapely.ops import nearest_points, split, linemerge, snap
 from shapely.geometry import Point, MultiPoint, LineString
 import momepy
-import osmnx as ox
-
 import matplotlib.pyplot as plt
 
-#%%
-# %reload_ext autoreload
-# %autoreload 2
 
 #%%
 with open(r'config.yml') as file:
@@ -139,6 +131,80 @@ ref_id_col = 'fot_id'
 
 #%%
 
+def find_matches_buffer(reference_data, osm_data, ref_id_col, dist):
+
+    '''
+    Function for finding which OSM edges intersect a buffered reference data set.
+    The first step in a matching of OSM with another line data set.
+
+    Parameters
+    ----------
+    reference_data: GeoDataFrame (geopandas)
+        GDF with edges (LineStrings) to be matched to OSM edges.
+
+    osm_data: GeoDataFrame (geopandas)
+        GeoDataFrame with OSM edges which the reference data should be matched to.
+
+    ref_id_col: String
+        Name of column with unique ID for reference feature
+
+    dist: Numerical
+        Max distance between distances that should be considered a match (used for creating the buffers)
+
+
+    Returns
+    -------
+    matches DataFrame (pandas):
+        DataFrame with the reference index as index, a column with reference data unique ID and the index and ID of intersecting OSM edges.
+
+    '''
+
+    # Functionality for accepting a series/row instead of a dataframe
+    if type(reference_data) == pd.core.series.Series:
+        reference_data = gpd.GeoDataFrame({ref_id_col:reference_data[ref_id_col], 'geometry':reference_data.geometry}, index=[0])
+
+    reference_buff = reference_data.copy(deep=True)
+    reference_buff.geometry = reference_buff.geometry.buffer(distance=dist)
+
+    # Create spatial index on osm data
+    osm_sindex = osm_data.sindex
+
+    # Create dataframe to store matches in
+    matches = pd.DataFrame(index=reference_buff.index, columns=['matches_index','matches_osmid', ref_id_col])
+
+    for index, row in reference_buff.iterrows():
+
+        # The function makes use of a spatial index to first identify potential matches before finding exact matches
+   
+        buffer = row['geometry']
+
+        possible_matches_index = list(osm_sindex.intersection(buffer.bounds))
+
+        possible_matches = osm_data.iloc[possible_matches_index]
+
+        precise_matches = possible_matches[possible_matches.intersects(buffer)]
+
+        precise_matches_index = list(precise_matches.index)
+
+        precise_matches_id = list(precise_matches.osmid)
+
+        matches.at[index, 'matches_index'] = precise_matches_index
+        matches.at[index, 'matches_osmid'] = precise_matches_id
+
+        matches.at[index, ref_id_col] = row[ref_id_col]
+
+    return matches
+
+
+# Buffer test
+
+# Test data (both gdf and series)
+
+# Run function
+
+# Assert that results are as expected
+
+
 def create_segments():
 
     # Cut dataset into small substrings
@@ -151,6 +217,7 @@ def create_segments():
     pass
 
 
+
 def merge_segments():
 
     # Merge segments with same ID
@@ -161,7 +228,54 @@ def merge_segments():
     pass
 
 
+def save_best_match(final_matches, ref_id_col, ref_id, osm_index, potential_matches, clipped_reference_geom):
 
+    '''
+    Function for saving the best of the potential matches.
+    To be used internally in the function for finding the exact match between features in reference and OSM data.
+
+    Parameters
+    ----------
+    osm_index: index key (string or int)
+        Index of matched OSM feature
+
+    ref_id_col: string
+        Name of column with unique ID for reference data
+
+    ref_id: string/numeric
+        Unique ID of reference edge
+
+    potential_matches: 
+        Dataframe with OSM edges that are potential matches
+
+    final_matches: pandas DataFrame
+        DataFrame used to store final mathces
+
+    clipped_reference_geometry: LineString
+        Geometry for the clipped reference edge for this match
+
+
+    Returns
+    -------
+    None:
+        Updates dataframe with final matches
+    '''
+
+    osm_id = potential_matches.loc[osm_index, 'osmid']
+
+    if final_matches.last_valid_index() == None:
+        new_ix = 1
+    else:
+        new_ix = final_matches.last_valid_index() + 1
+
+    final_matches.at[new_ix, ref_id_col] = ref_id
+    final_matches.at[new_ix, 'osmid'] = osm_id
+    final_matches.at[new_ix, 'osm_index'] = osm_index
+    final_matches.at[new_ix, 'geometry'] = clipped_reference_geom
+
+
+
+# Function for finding the best out of potential/possible matches
 def find_best_match_segment(potential_matches, reference_edge, angular_threshold, hausdorff_threshold):
 
     '''
@@ -216,21 +330,20 @@ def find_best_match_segment(potential_matches, reference_edge, angular_threshold
 
     return best_osm_ix
 
-
-def find_matches_segments(osm_edges, reference_data, ref_id_col, buffer_dist=12, angular_threshold=30, hausdorff_threshold=15, crs='EPSG:25832'):
+# Function for running other matching functions
+def find_matches_segments(osm_edges, reference_data, ref_id_col, buffer_dist=10, angular_threshold=30, hausdorff_threshold=12, crs='EPSG:25832'):
 
     final_matches = gpd.GeoDataFrame(columns = [ref_id_col,'osmid','osm_index','geometry'], crs=crs) #TODO: Consider creating multiindex from ref_ix and osm_ix?
 
     for _, row in reference_data.iterrows():
 
         ref_id = row[ref_id_col]
-        print(ref_id)
-
+       
         # TODO: Check that this one works!!
+        # Find matches within buffer distance
         buffer_matches = mf.find_matches_buffer(reference_data=row, osm_data=osm_edges, ref_id_col=ref_id_col, dist=buffer_dist)
 
          # If no matches exist at all, continue to next reference_data geometry and add the reference_data feature as unmatched
-
         if len(buffer_matches.loc[0,'matches_index']) < 1:
 
             print('No matches found with buffer!')
@@ -240,18 +353,18 @@ def find_matches_segments(osm_edges, reference_data, ref_id_col, buffer_dist=12,
         else:
             ref_edge = row.geometry
 
-            if ref_edge.geom_type == 'MultiLineString': 
+            if ref_edge.geom_type == 'MultiLineString':
                 # Some steps will not work for MultiLineString - convert those to LineString
                 ref_edge = linemerge(ref_edge) # This step assumes that MultiLineString do not have gaps!
 
             # Get the original geometries that intersected this reference_data geometry's buffer
-            osm_df = osm_edges[['osmid','highway','name','geometry']].loc[buffer_matches.loc[0,'matches_index']].copy(deep=True)
+            potential_matches = osm_edges[['osmid','highway','name','geometry']].loc[buffer_matches.loc[0,'matches_index']].copy(deep=True)
 
-            osm_df['hausdorff_dist'] = None
-            osm_df['angle'] = None
+            potential_matches['hausdorff_dist'] = None
+            potential_matches['angle'] = None
 
             # TODO: Rewrite best match function for segments!
-            best_osm_ix = mf.find_best_match(potential_matches=osm_df, reference_edge=ref_edge, angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold)
+            best_osm_ix = mf.find_best_match(potential_matches=potential_matches, reference_edge=ref_edge, angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold)
 
             print('ref id', ref_id)
             print('best osm ix', best_osm_ix)
@@ -268,7 +381,7 @@ def find_matches_segments(osm_edges, reference_data, ref_id_col, buffer_dist=12,
 
     print(f'{ len(reference_data) - len(final_matches) } reference edges where not matched')
     
-    return final_matches, partially_matched, buffer_matches, osm_df
+    return final_matches, partially_matched, buffer_matches, potential_matches
 
 
 
@@ -279,36 +392,7 @@ def find_matches_segments(osm_edges, reference_data, ref_id_col, buffer_dist=12,
 final_matches, partially_matched, buff, osmdf = find_matches_segments(osm_edges=osm_edges, reference_data=reference_data.loc[reference_data.fot_id==1087306852], ref_id_col=ref_id_col, buffer_dist=10, angular_threshold=20, hausdorff_threshold=15, crs='EPSG:25832')
 
 #%%
-
-#%%
-
-test_o = osm_edges.loc[osm_edges.osmid==1093]
-
-o_geo = test_o.geometry.values[0]
-
-test_r = reference_data.loc[reference_data.fot_id==1210413595]
-
-r_geo = test_r.geometry.values[0]
-
-test = mf.clip_new_edge(r_geo, o_geo)
-
-t_gdf = gpd.GeoDataFrame(geometry=[test], crs=crs)
-#%%
-
-# TODO: Rerun for partial matches
-
-# Split multilinestrings in partially matched into individual LineStrings
-partially_matched_split = mf.explode_multilinestrings(partially_matched)
-
-# Repeat buffer operation
-
-# Repeat exact matches
-
-# Look at quality
-
-# For how long? Look at results from each run - are they valid?
-
-#%%
+# TODO: Reassemble!
 
 #%% 
 # TODO: Quality check (optional)
@@ -322,12 +406,6 @@ if quality_check:
     pass
 
 #%%
-# Update OSM based on matches
-
-ref_col = 'vejklasse'
-new_col = 'cycling_infra_ref'
-
-updated_osm = mf.update_osm(final_matches, osm_edges, reference_data, ref_col=ref_col, new_col=new_col)
 
 #%%
 # TODO: Add unmatched to dataset
@@ -335,7 +413,7 @@ updated_osm = mf.update_osm(final_matches, osm_edges, reference_data, ref_col=re
 # Unmatched are those not matched when rerunning partial matches
 
 # TODO: Change to actual unmatched - this is just for testing
-unmatched = partially_matched_split.copy(deep=True)
+unmatched = None
 
 if add_unmatched:
     

@@ -179,6 +179,16 @@ def find_parallel_edges(edges):
 
     edges.loc[parallel.index, 'key'] = 1 #Set keys to 1
 
+    k = 1
+
+    while len(edges[edges.duplicated(subset=['u','v','key'])]) > 0:
+
+        k += 1
+
+        parallel = edges[edges.duplicated(subset=['u','v','key'])]
+
+        edges.loc[parallel.index, 'key'] = k #Set keys to 1
+
     assert len(edges[edges.duplicated(subset=['u','v','key'])]) == 0, 'Edges not uniquely indexed by u,v,key!'
 
     return edges
@@ -228,6 +238,8 @@ def create_osmnx_graph(gdf):
 
     nodes.set_index('osmid', inplace=True)
 
+    edges['length'] = edges.geometry.length # Length is required by some functions
+
     edges['key'] = 0
 
     edges = find_parallel_edges(edges)
@@ -236,7 +248,7 @@ def create_osmnx_graph(gdf):
     edges = edges.set_index(['u', 'v', 'key'])
 
     # For ox simplification to work, edge geometries must be dropped. Edge geometries is defined by their start and end node
-    edges.drop(['geometry'], axis=1, inplace=True)
+    #edges.drop(['geometry'], axis=1, inplace=True) # Not required by new simplification function
 
 
     G_ox = ox.graph_from_gdfs(nodes, edges)
