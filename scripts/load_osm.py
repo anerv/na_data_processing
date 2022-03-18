@@ -91,7 +91,6 @@ G_sim_un = ox.get_undirected(G_sim)
 # Project to project crs
 G_sim_un = ox.project_graph(G_sim_un, to_crs=crs)
 
-
 # Recreate ox_edges and nodes to be used in matching process
 ox_nodes_s, ox_edges_s = ox.graph_to_gdfs(G_sim_un)
 

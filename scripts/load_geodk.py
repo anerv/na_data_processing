@@ -44,6 +44,7 @@ geodk = geodk[useful_cols]
 geodk = geodk.to_crs(crs)
 
 assert geodk.crs == crs
+
 #%%
 # Create graph structure
 graph_ref = mf.create_osmnx_graph(geodk)

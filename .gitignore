@@ -44,3 +44,6 @@ data/planet_11.489,55.575_12.465,55.915-shp/README.txt
 *.avl
 *.graphml
 *.pickle
+data/cykeldata_kk/wfsrequest.txt
+.gitignore
+data/cykeldata_kk/cykeldata_kk.cst

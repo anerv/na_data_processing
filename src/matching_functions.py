@@ -77,19 +77,77 @@ def get_hausdorff_dist(osm_edge, ref_edge):
 
     return hausdorff_dist
 
-
-
-##############################
-
-
+ 
 
 ##############################
 
+def find_matches_buffer(reference_data, osm_data, ref_id_col, dist):
 
+    '''
+    Function for finding which OSM edges intersect a buffered reference data set.
+    The first step in a matching of OSM with another line data set.
+
+    Parameters
+    ----------
+    reference_data: GeoDataFrame (geopandas)
+        GDF with edges (LineStrings) to be matched to OSM edges.
+
+    osm_data: GeoDataFrame (geopandas)
+        GeoDataFrame with OSM edges which the reference data should be matched to.
+
+    ref_id_col: String
+        Name of column with unique ID for reference feature
+
+    dist: Numerical
+        Max distance between distances that should be considered a match (used for creating the buffers)
+
+
+    Returns
+    -------
+    matches DataFrame (pandas):
+        DataFrame with the reference index as index, a column with reference data unique ID and the index and ID of intersecting OSM edges.
+
+    '''
+    assert reference_data.crs == osm_data.crs, 'Data are not in the same CRS!'
+
+    # Functionality for accepting a series/row instead of a dataframe
+    if type(reference_data) == pd.core.series.Series:
+        reference_data = gpd.GeoDataFrame({ref_id_col:reference_data[ref_id_col], 'geometry':reference_data.geometry}, index=[0])
+
+    reference_buff = reference_data.copy(deep=True)
+    reference_buff.geometry = reference_buff.geometry.buffer(distance=dist)
+
+    # Create spatial index on osm data
+    osm_sindex = osm_data.sindex
+
+    # Create dataframe to store matches in
+    matches = pd.DataFrame(index=reference_buff.index, columns=['matches_index','matches_osmid', ref_id_col])
+
+    for index, row in reference_buff.iterrows():
+
+        # The function makes use of a spatial index to first identify potential matches before finding exact matches
+   
+        buffer = row['geometry']
+
+        possible_matches_index = list(osm_sindex.intersection(buffer.bounds))
+
+        possible_matches = osm_data.iloc[possible_matches_index]
+
+        precise_matches = possible_matches[possible_matches.intersects(buffer)]
+
+        precise_matches_index = list(precise_matches.index)
+
+        precise_matches_id = list(precise_matches.osmid)
+
+        matches.at[index, 'matches_index'] = precise_matches_index
+        matches.at[index, 'matches_osmid'] = precise_matches_id
+
+        matches.at[index, ref_id_col] = row[ref_id_col]
+
+    return matches
 
 
 ##############################
-
 
 def update_osm(matches, osm_data, ref_data, ref_col, new_col, compare_col= None):
 
@@ -219,7 +277,14 @@ def create_osmnx_graph(gdf):
 
     '''
 
-    gdf['geometry'] = gdf['geometry'].apply( lambda x: linemerge(x) if x.geom_type == 'MultiLineString' else x) 
+    gdf['geometry'] = gdf['geometry'].apply( lambda x: linemerge(x) if x.geom_type == 'MultiLineString' else x)
+
+    # If Multilines cannot be merged do to gaps, use explode
+    geom_types = gdf.geom_type._to_list()
+    unique_geom_types = set(geom_types)
+
+    if 'MultiLineString' in geom_types:
+        gdf = gdf.explode(index_parts=False)
 
     G = momepy.gdf_to_nx(gdf, approach='primal', directed=True)
 
@@ -335,6 +400,40 @@ if __name__ == '__main__':
     assert nodes.index.name == 'osmid'
 
     assert edges.index.names == ['u','v','key']
+
+
+    # Test buffer matches function
+    ref = gpd.read_file('../tests/geodk_small_test.gpkg')
+    osm = gpd.read_file('../tests/osm_small_test.gpkg')
+
+    fot_id = 1095203923
+    index = ref.loc[ref.fot_id==fot_id].index.values[0]
+    correct_osm_matches = [17463, 17466, 17467, 17472, 17473, 58393, 58394]
+
+    tests = [ref, ref.loc[index]]
+
+    for t in tests:
+
+        buffer_matches = find_matches_buffer(t, osm, 'fot_id', 10)
+
+        assert ['matches_index', 'matches_osmid', 'fot_id'] == buffer_matches.columns.to_list()
+
+        assert type(buffer_matches) == pd.core.frame.DataFrame
+
+        if len(buffer_matches) > 1:
+            for b in buffer_matches['matches_osmid'].loc[index]:
+                assert b in correct_osm_matches
+
+            assert len(correct_osm_matches) == len(buffer_matches['matches_osmid'].loc[index])
+
+        else:
+            for b in buffer_matches['matches_osmid'].loc[0]:
+                assert b in correct_osm_matches
+
+            assert len(correct_osm_matches) == len(buffer_matches['matches_osmid'].loc[0])
+
+
+
 
 '''
 
