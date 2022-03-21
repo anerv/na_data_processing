@@ -16,7 +16,6 @@ db_host: 'localhost'
 db_password: 'aneitu'
 
 quality_check: True
-quality_data: '../data/.csv' # Data to be used for quality metrics for data matching
+quality_data: '../data/.json' # Data to be used for quality metrics for data matching
 
-add_unmatched: True
-
+org_ref_id_col: 'fot_id'
