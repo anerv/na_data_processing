@@ -173,7 +173,7 @@ def get_segments(linestring, seg_length):
     
     # If the last segment is too short, merge it with the one before
     for i, l in enumerate(lines):
-        if l.length < seg_length/2:
+        if l.length < seg_length/3:
             new_l = linemerge((lines[i-1], l))
 
             lines[i-1] = new_l
@@ -330,13 +330,60 @@ def save_best_match(final_matches, ref_id_col, ref_id, osm_index, potential_matc
 
 ##############################
 
-def find_matches_segments(osm_edges, reference_data, ref_id_col, buffer_dist=10, angular_threshold=30, hausdorff_threshold=12, crs='EPSG:25832'):
+def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, ref_id_col, angular_threshold=30, hausdorff_threshold=12):
 
     final_matches = pd.DataFrame(columns = [ref_id_col,'osmid','osm_index'])
 
     assert osm_edges.crs == reference_data.crs, 'Data not in the same crs!'
 
     for ref_index, row in reference_data.iterrows():
+
+        ref_id = row[ref_id_col]
+       
+         # If no matches exist at all, continue to next reference_data geometry and add the reference_data feature as unmatched
+        if len(buffer_matches.loc[ref_index,'matches_index']) < 1:
+
+            print('No matches found with buffer!')
+
+            continue
+
+        else:
+            ref_edge = row.geometry
+
+            if ref_edge.geom_type == 'MultiLineString':
+                # Some steps will not work for MultiLineString - convert those to LineString
+                ref_edge = linemerge(ref_edge) # This step assumes that MultiLineString do not have gaps!
+
+            # Get the original geometries that intersected this reference_data geometry's buffer
+            potential_matches = osm_edges[['osmid','geometry']].loc[buffer_matches.loc[ref_index,'matches_index']].copy(deep=True)
+
+            potential_matches['hausdorff_dist'] = None
+            potential_matches['angle'] = None
+
+            best_osm_ix = find_best_match_segment(potential_matches=potential_matches, reference_edge=ref_edge, angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold)
+
+            if best_osm_ix is None:
+                print('No match found out of potential matches!')
+                continue
+
+            # Save best match
+            save_best_match(final_matches=final_matches, ref_id_col=ref_id_col, ref_id=ref_id, osm_index=best_osm_ix, potential_matches=potential_matches)
+
+    print(f'{len(final_matches)} reference segments where matched to OSM edges')
+
+    print(f'{ len(reference_data) - len(final_matches) } reference segments where not matched')
+    
+    return final_matches
+##############################
+
+
+def find_matches_segments(osm_edges, reference_data, ref_id_col, buffer_dist=10, angular_threshold=30, hausdorff_threshold=12, crs='EPSG:25832'):
+
+    final_matches = pd.DataFrame(columns = [ref_id_col,'osmid','osm_index'])
+
+    assert osm_edges.crs == reference_data.crs, 'Data not in the same crs!'
+
+    for _, row in reference_data.iterrows():
 
         ref_id = row[ref_id_col]
        
@@ -380,7 +427,50 @@ def find_matches_segments(osm_edges, reference_data, ref_id_col, buffer_dist=10,
 
 ##############################
 
-def update_osm(matches, osm_data, ref_data, ref_col, new_col, compare_col= None):
+def update_osm(osm_segments, ref_segments, osm_data, reference_data, final_matches, attr, org_ref_id_col):
+
+    ids_attr_dict = summarize_matches(osm_segments, ref_segments, reference_data, final_matches, attr, org_ref_id_col)
+
+    attr_df = pd.DataFrame.from_dict(ids_attr_dict, orient='index')
+    attr_df.reset_index(inplace=True)
+    attr_df.rename(columns={'index':'org_osmid',0:attr}, inplace=True)
+
+    updated_osm = osm_data.merge(attr_df, left_on='osmid', right_on='org_osmid', how='left')
+
+    return updated_osm
+
+##############################
+
+def summarize_matches(osm_segments, ref_segments, reference_data, final_matches, attr, org_ref_id_col):
+
+    # Create dataframe with new and old ids and information on matches
+    osm_merged = osm_segments.merge(final_matches, how='left', on='osmid', suffixes=('_o','_r'))
+    ref_attr = ref_segments.merge(reference_data[[org_ref_id_col,attr]], on=org_ref_id_col)
+    osm_merged = osm_merged.merge(ref_attr[['seg_id',attr]], on='seg_id', how='left')
+
+    org_ids = list(osm_merged['org_osmid'].unique())
+
+    matched_attributes = {}
+
+    for i in org_ids:
+        
+        feature = osm_merged.loc[osm_merged.org_osmid == i].copy(deep=True)
+        feature[attr] = feature[attr].fillna('none')
+
+        matched_values = feature[attr].unique()
+        if len(matched_values) == 1:
+            matched_attributes[i] = matched_values[0]
+
+        else:
+            feature['length'] = feature.geometry.length
+            summed = feature.groupby(attr).agg({'length': 'sum'})
+            majority_value = summed['length'].idxmax()
+            matched_attributes[i] = majority_value
+
+    return matched_attributes   
+
+
+def update_osm_old(matches, osm_data, ref_data, ref_col, new_col, compare_col= None):
 
     '''
     Function for updating OSM based on matches with reference dataset. 
@@ -553,7 +643,6 @@ def create_osmnx_graph(gdf):
     return G_ox
 
 
-
 ##############################
 
 def explode_multilinestrings(gdf):
@@ -688,8 +777,8 @@ if __name__ == '__main__':
 
     for _, row in test_segments.iterrows():
 
-        assert row.geometry.length <= seg_length * 1.5
-        assert row.geometry.length >= seg_length / 2
+        assert row.geometry.length <= seg_length * 1.3
+        assert row.geometry.length >= seg_length / 3
 
 
     # Test find best match function
