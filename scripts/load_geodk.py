@@ -53,14 +53,14 @@ graph_ref = mf.create_osmnx_graph(geodk)
 G_sim = sf.simplify_graph(graph_ref, attributes = ['vejklasse'])
 
 #%%
+# Simplification experiment
 reg_nodes, reg_edges = ox.graph_to_gdfs(graph_ref)
-
 sim_nodes, sim_edges = ox.graph_to_gdfs(G_sim)
 
-sim_nodes.to_file('../data/sim_nodes.gpkg', driver='GPKG')
-sim_edges[['geometry','vejklasse']].to_file('../data/sim_edges.gpkg', driver='GPKG')
-reg_nodes.to_file('../data/reg_nodes.gpkg', driver='GPKG')
-reg_edges.to_file('../data/red_edges.gpkg', driver='GPKG')
+sim_nodes.to_file('../data/simplification_ex.gpkg', layer='sim_nodes', driver='GPKG')
+sim_edges[['geometry','vejklasse']].to_file('../data/simplification_ex.gpkg', layer='sim_edges', driver='GPKG')
+reg_nodes.to_file('../data/simplification_ex.gpkg', layer='reg_nodes', driver='GPKG')
+reg_edges.to_file('../data/simplification_ex.gpkg', layer='reg_edges', driver='GPKG')
 
 #%%
 # Check crs
@@ -69,7 +69,6 @@ nodes, edges = ox.graph_to_gdfs(G_sim)
 assert edges.crs == crs, 'Data is in wrong crs!'
 
 #%%
-
 # Create unique id
 edges['old_id'] = edges.fot_id
 
@@ -84,7 +83,6 @@ edges['new_id'] = ids
 assert len(edges.new_id.unique()) == len(edges)
 
 #%%
-
 if use_postgres:
 
     connection = dbf.connect_pg(db_name, db_user, db_password)
