@@ -9,22 +9,22 @@
 *.gpkg
 *.gpkg-shm 
 *.gpkg-wal
-data/DK_SHAPE_UTM32-EUREF89/CreateIndex.bat
-data/DK_SHAPE_UTM32-EUREF89/FOT2GIS.doc
-data/DK_SHAPE_UTM32-EUREF89/FOT4_shape_9.3.mxd
-data/DK_SHAPE_UTM32-EUREF89/FOT4_shape_10.mxd
-data/DK_SHAPE_UTM32-EUREF89/FOT5_shape_9.3.mxd
-data/DK_SHAPE_UTM32-EUREF89/FOT5_shape_10.mxd
-data/DK_SHAPE_UTM32-EUREF89/GEODANMARK.KMS
-data/DK_SHAPE_UTM32-EUREF89/index.py
-data/DK_SHAPE_UTM32-EUREF89/DIVERSE/Dokumentation til KORT10 Adressetema.pdf
-data/DK_SHAPE_UTM32-EUREF89/DIVERSE/information-kort10.pdf
-data/DK_SHAPE_UTM32-EUREF89/DIVERSE/kort10_fotkort10.pdf
-data/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Attributter_V2.pdf
-data/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Attributter_V2.xls
-data/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Featurekoder_V2.pdf
-data/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Featurekoder_V2.xls
-data/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Feltbeskrivelse_V2.pdf
+data/raw/DK_SHAPE_UTM32-EUREF89/CreateIndex.bat
+data/raw/DK_SHAPE_UTM32-EUREF89/FOT2GIS.doc
+data/raw/DK_SHAPE_UTM32-EUREF89/FOT4_shape_9.3.mxd
+data/raw/DK_SHAPE_UTM32-EUREF89/FOT4_shape_10.mxd
+data/raw/DK_SHAPE_UTM32-EUREF89/FOT5_shape_9.3.mxd
+data/raw/DK_SHAPE_UTM32-EUREF89/FOT5_shape_10.mxd
+data/raw/DK_SHAPE_UTM32-EUREF89/GEODANMARK.KMS
+data/raw/DK_SHAPE_UTM32-EUREF89/index.py
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Dokumentation til KORT10 Adressetema.pdf
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/information-kort10.pdf
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/kort10_fotkort10.pdf
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Attributter_V2.pdf
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Attributter_V2.xls
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Featurekoder_V2.pdf
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Featurekoder_V2.xls
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Feltbeskrivelse_V2.pdf
 data/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Feltbeskrivelse_V2.xls
 data/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Skeltyper_V2.pdf
 data/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Skeltyper_V2.xls
@@ -47,3 +47,18 @@ data/planet_11.489,55.575_12.465,55.915-shp/README.txt
 data/cykeldata_kk/wfsrequest.txt
 .gitignore
 data/cykeldata_kk/cykeldata_kk.cst
+data/raw/DK_SHAPE_UTM32-EUREF89/CreateIndex.bat
+.gitignore
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/FONTE/KMS51503.TTF
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/FONTE/KMS080502.TTF
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/FONTE/KMS250602.TTF
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/FONTE/MATR.TTF
+data/raw/planet_11.489,55.575_12.465,55.915-shp/README.txt
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Feltbeskrivelse_V2.xls
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Skeltyper_V2.pdf
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikelkort_Skeltyper_V2.xls
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Matrikulære data.pdf
+data/raw/DK_SHAPE_UTM32-EUREF89/DIVERSE/Valdemar_help.pdf
+data/raw/planet_11.489,55.575_12.465,55.915-shp/CHECKSUM.txt
+data/raw/planet_11.489,55.575_12.465,55.915-shp/logfile.txt
+data/raw/planet_11.489,55.575_12.465,55.915-shp/README.html
