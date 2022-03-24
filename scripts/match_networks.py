@@ -147,7 +147,7 @@ ref_segments = ref_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
 #%%
 buffer_matches = mf.find_matches_buffer(reference_data=ref_segments, osm_data=osm_segments, ref_id_col='seg_id', dist=15)
 #%%
-final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, ref_id_col='seg_id', hausdorff_threshold=17)
+final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, ref_id_col='seg_id', hausdorff_threshold=17, angular_threshold=30)
 #%%
 osm_updated = mf.update_osm(osm_segments=osm_segments, ref_segments=ref_segments, osm_data=osm_edges, reference_data=reference_data, final_matches=final_matches, attr='vejklasse',org_ref_id_col=org_ref_id_col)
 

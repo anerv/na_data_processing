@@ -49,6 +49,7 @@ assert geodk.crs == crs
 # Create graph structure
 graph_ref = mf.create_osmnx_graph(geodk)
 
+#%%
 # Works, but changes some edge geometries??
 G_sim = sf.simplify_graph(graph_ref, attributes = ['vejklasse'])
 

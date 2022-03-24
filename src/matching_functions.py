@@ -82,6 +82,7 @@ def get_hausdorff_dist(osm_edge, ref_edge):
 
 ##############################
 
+# TODO: Create more efficient version!
 def find_matches_buffer(reference_data, osm_data, ref_id_col, dist):
 
     '''
@@ -183,7 +184,7 @@ def get_segments(linestring, seg_length):
     return lines
 
 ##############################
-
+# TODO: Create more efficient version!
 def create_segment_gdf(gdf, segment_length, id_col):
 
     # New geodataframe for storing segments
@@ -222,7 +223,7 @@ def create_segment_gdf(gdf, segment_length, id_col):
     return segments_gdf
 
 ##############################
-
+# TODO: Create more efficient version!
 # Function for finding the best out of potential/possible matches
 def find_best_match_segment(potential_matches, reference_edge, angular_threshold, hausdorff_threshold):
 
@@ -330,6 +331,7 @@ def save_best_match(final_matches, ref_id_col, ref_id, osm_index, potential_matc
 
 ##############################
 
+# TODO: Create more efficient version!
 def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, ref_id_col, angular_threshold=30, hausdorff_threshold=12):
 
     final_matches = pd.DataFrame(columns = [ref_id_col,'osmid','osm_index'])
@@ -376,7 +378,7 @@ def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, ref_id_c
     return final_matches
 ##############################
 
-
+# Not used right now
 def find_matches_segments(osm_edges, reference_data, ref_id_col, buffer_dist=10, angular_threshold=30, hausdorff_threshold=12, crs='EPSG:25832'):
 
     final_matches = pd.DataFrame(columns = [ref_id_col,'osmid','osm_index'])
@@ -601,12 +603,13 @@ def create_osmnx_graph(gdf):
     gdf['geometry'] = gdf['geometry'].apply( lambda x: linemerge(x) if x.geom_type == 'MultiLineString' else x)
 
     # If Multilines cannot be merged do to gaps, use explode
-    geom_types = gdf.geom_type._to_list()
+    geom_types = gdf.geom_type.to_list()
     unique_geom_types = set(geom_types)
 
     if 'MultiLineString' in geom_types:
         gdf = gdf.explode(index_parts=False)
 
+    # TODO: Convert linestrings to edges!
     G = momepy.gdf_to_nx(gdf, approach='primal', directed=True)
 
     nodes, edges = momepy.nx_to_gdf(G)

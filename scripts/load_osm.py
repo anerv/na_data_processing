@@ -79,6 +79,8 @@ for q in queries:
 
 ox_edges.cycling_infra.value_counts()
 
+# TODO: Filter out proposed/no longer existing infrastructure!
+
 #%%  
 # Recreate graph with new attribute to simplify 
 G_updated = ox.graph_from_gdfs(ox_nodes, ox_edges) # type is MultiDiGraph
