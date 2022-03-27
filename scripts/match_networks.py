@@ -1,9 +1,9 @@
 '''
 Script for matching road networks.
 '''
-# TODO: Docs
+# TODO: Documentation
 
-# TODO: Functionality for doing analysis grid by grid
+# TODO: Functionality for doing analysis grid by grid?
 
 #%%
 import pickle
@@ -101,7 +101,7 @@ if os.path.exists('../data/ref_segments_full.gpkg'):
 
 else:
     # Create segments
-    ref_segments = mf.create_segment_gdf(reference_data, segment_length=10, id_col=org_ref_id_col)
+    ref_segments = mf.create_segment_gdf(reference_data, segment_length=10)
     ref_segments.set_crs(crs, inplace=True)
     ref_segments.to_file('../data/ref_segments_full.gpkg', driver='GPKG')
 
@@ -110,29 +110,11 @@ if os.path.exists('../data/osm_segments_full.gpkg'):
     osm_segments = gpd.read_file('../data/osm_segments_full.gpkg')
 
 else:
-    # Only segmentize OSM edges within buffer distance from reference edges!
-    ref_buffer = reference_data.copy()
-    ref_buffer.geometry = ref_buffer.geometry.buffer(distance=15)
-    osm_sindex = osm_edges.sindex
-
-    matches_ix = []
-
-    for index, row in ref_buffer.iterrows():
-            buffer = row['geometry']
-            possible_matches_index = list(osm_sindex.intersection(buffer.bounds))
-            possible_matches = osm_edges.iloc[possible_matches_index]
-            precise_matches = possible_matches[possible_matches.intersects(buffer)]
-            precise_matches_index = list(precise_matches.index)
-            matches_ix.extend(precise_matches_index)
-
-    matches_unique = list(set(matches_ix))
-    osm_subset = osm_edges.loc[matches_unique]
-
-    osm_segments = mf.create_segment_gdf(osm_subset, segment_length=10, id_col='osmid')
+    osm_segments = mf.create_segment_gdf(osm_edges, segment_length=10)
     osm_segments['org_osmid'] = osm_segments.osmid
     osm_segments.rename(columns={'seg_id':'osmid'}) # Because function assumes an id column names osmid
     osm_segments.set_crs(crs, inplace=True)
-    osm_segments.to_file('../data/osm_segments_full.gpkg', driver='GPKG')
+    osm_segments.drop('old_osmid',axis=1).to_file('../data/osm_segments_full.gpkg', driver='GPKG')
 
 #%%
 # Get smaller subsets
@@ -145,9 +127,10 @@ osm_segments = osm_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
 ref_segments = ref_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
 
 #%%
-buffer_matches = mf.find_matches_buffer(reference_data=ref_segments, osm_data=osm_segments, ref_id_col='seg_id', dist=15)
+buffer_matches = mf.return_buffer_matches(reference_data=ref_segments, osm_data=osm_segments, ref_id_col='seg_id', dist=15)
 #%%
-final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, ref_id_col='seg_id', hausdorff_threshold=17, angular_threshold=30)
+final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, angular_threshold=30, hausdorff_threshold=17)
+
 #%%
 osm_updated = mf.update_osm(osm_segments=osm_segments, ref_segments=ref_segments, osm_data=osm_edges, reference_data=reference_data, final_matches=final_matches, attr='vejklasse',org_ref_id_col=org_ref_id_col)
 
@@ -202,4 +185,7 @@ else:
 
     with open('../data/osm_updated.pickle', 'wb') as handle:
         pickle.dump(osm_updated, handle, protocol=pickle.HIGHEST_PROTOCOL)
-#%%
+
+# %%
+
+# %%
