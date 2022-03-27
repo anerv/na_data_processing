@@ -87,6 +87,8 @@ G_updated = ox.graph_from_gdfs(ox_nodes, ox_edges) # type is MultiDiGraph
 
 G_sim = sf.simplify_graph(G_updated, attributes = ['cycling_infra','highway'])
 
+# TODO: Consolidate intersections? 
+
 # Get undirected now
 G_sim_un = ox.get_undirected(G_sim)
 
