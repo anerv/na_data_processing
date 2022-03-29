@@ -375,7 +375,7 @@ def create_osmnx_graph(gdf):
     if 'MultiLineString' in geom_types:
         gdf = gdf.explode(index_parts=False)
 
-    # TODO: Convert linestrings to edges!
+    # TODO: Convert linestrings to edges?
     G = momepy.gdf_to_nx(gdf, approach='primal', directed=True)
 
     nodes, edges = momepy.nx_to_gdf(G)
