@@ -44,29 +44,16 @@ geodk = geodk[useful_cols]
 geodk = geodk.to_crs(crs)
 
 assert geodk.crs == crs
-
 #%%
 # Create graph structure
 graph_ref = mf.create_osmnx_graph(geodk)
 
 #%%
-# Works, but changes some edge geometries??
-G_sim = sf.simplify_graph(graph_ref, attributes = ['vejklasse'])
-
-#%%
-# Simplification experiment
-reg_nodes, reg_edges = ox.graph_to_gdfs(graph_ref)
-sim_nodes, sim_edges = ox.graph_to_gdfs(G_sim)
-
-sim_nodes.to_file('../data/simplification_ex.gpkg', layer='sim_nodes', driver='GPKG')
-sim_edges[['geometry','vejklasse']].to_file('../data/simplification_ex.gpkg', layer='sim_edges', driver='GPKG')
-reg_nodes.to_file('../data/simplification_ex.gpkg', layer='reg_nodes', driver='GPKG')
-reg_edges.to_file('../data/simplification_ex.gpkg', layer='reg_edges', driver='GPKG')
+G_sim = sf.momepy_simplify_graph(graph_ref, attributes=['vejklasse'])
 
 #%%
 # Check crs
 nodes, edges = ox.graph_to_gdfs(G_sim)
-
 assert edges.crs == crs, 'Data is in wrong crs!'
 
 #%%
