@@ -3,8 +3,13 @@ Script for matching road networks.
 '''
 # TODO: Documentation
 
-# TODO: Functionality for doing analysis grid by grid?
+# TODO: Functionality for doing analysis grid by grid!!
 
+# Load bigger dataset
+
+# Function for creating grid for entire dataset 
+
+# TODO: Fix Update OSM function
 #%%
 import pickle
 import geopandas as gpd
@@ -93,9 +98,6 @@ print(f'Number of rows in osm_edge table: {len(osm_edges)}')
 print(f'Number of rows in reference_data table: {len(reference_data)}')
 
 #%%
-#ref = gpd.read_file('../tests/geodk_small_test.gpkg')
-#osm = gpd.read_file('../tests/osm_small_test.gpkg')
-#%%
 if os.path.exists('../data/ref_segments_full.gpkg'):
     ref_segments = gpd.read_file('../data/ref_segments_full.gpkg')
 
@@ -103,6 +105,7 @@ else:
     # Create segments
     ref_segments = mf.create_segment_gdf(reference_data, segment_length=10)
     ref_segments.set_crs(crs, inplace=True)
+    ref_segments.dropna(subset=['geometry'],inplace=True)
     ref_segments.to_file('../data/ref_segments_full.gpkg', driver='GPKG')
 
 #%%
@@ -111,31 +114,37 @@ if os.path.exists('../data/osm_segments_full.gpkg'):
 
 else:
     osm_segments = mf.create_segment_gdf(osm_edges, segment_length=10)
-    osm_segments['org_osmid'] = osm_segments.osmid
-    osm_segments.rename(columns={'seg_id':'osmid'}) # Because function assumes an id column names osmid
+    #osm_segments['org_osmid'] = osm_segments.osmid
+    osm_segments.rename(columns={'osmid':'org_osmid'}, inplace=True)
+    osm_segments.rename(columns={'seg_id':'osmid'}, inplace=True) # Because function assumes an id column names osmid
     osm_segments.set_crs(crs, inplace=True)
-    osm_segments.drop('old_osmid',axis=1).to_file('../data/osm_segments_full.gpkg', driver='GPKG')
+    osm_segments.dropna(subset=['geometry'],inplace=True)
+    osm_segments[['highway','osmid','org_osmid','geometry']].to_file('../data/osm_segments_full.gpkg', driver='GPKG')
 
 #%%
 # Get smaller subsets
-xmin = 723371
+xmin = 721371
 xmax = xmin + 2000
-ymin = 6180833
+ymin = 6170833
 ymax = ymin + 2000
 
 osm_segments = osm_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
 ref_segments = ref_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
-
 #%%
 buffer_matches = mf.return_buffer_matches(reference_data=ref_segments, osm_data=osm_segments, ref_id_col='seg_id', dist=15)
 #%%
 final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, angular_threshold=30, hausdorff_threshold=17)
+#%%
+osm_updated = mf.update_osm(osm_segments=osm_segments, osm_data=osm_edges, final_matches=final_matches, attr='vejklasse')
 
 #%%
-osm_updated = mf.update_osm(osm_segments=osm_segments, ref_segments=ref_segments, osm_data=osm_edges, reference_data=reference_data, final_matches=final_matches, attr='vejklasse',org_ref_id_col=org_ref_id_col)
+# To get those OSM edges who have been matched:
+
+# References edges that have been matched:
+
+# Non-matched reference edges:
 
 #%%
-
 '''
 id_matches = final_matches.seg_id.to_list()
 matched = ref_segments.loc[ref_segments.seg_id.isin(id_matches)]

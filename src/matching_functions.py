@@ -232,12 +232,15 @@ def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angula
 
 def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_threshold=30, hausdorff_threshold=12):
 
+    # Get edges matched with buffer
     matched_data = reference_data.loc[buffer_matches.index].copy(deep=True)
 
+    # Find best match within thresholds of angles and distance
     matched_data['matches_ix'] = matched_data.apply(lambda x: find_best_match(buffer_matches, ref_index=x.name, osm_edges=osm_edges, reference_edge=x['geometry'], angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold), axis=1)
     
     matched_data.dropna(inplace = True)
 
+    # Get ids of matched osm edges
     matched_ids = osm_edges.loc[matched_data.matches_ix, 'osmid'].values
     matched_data['osmid'] = matched_ids
 
@@ -249,9 +252,9 @@ def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_
 
 ##############################
 
-def update_osm(osm_segments, ref_segments, osm_data, reference_data, final_matches, attr, org_ref_id_col):
+def update_osm(osm_segments, osm_data, final_matches, attr):
 
-    ids_attr_dict = summarize_matches(osm_segments, ref_segments, reference_data, final_matches, attr, org_ref_id_col)
+    ids_attr_dict = summarize_matches(osm_segments, final_matches, attr)
 
     attr_df = pd.DataFrame.from_dict(ids_attr_dict, orient='index')
     attr_df.reset_index(inplace=True)
@@ -264,13 +267,14 @@ def update_osm(osm_segments, ref_segments, osm_data, reference_data, final_match
 ##############################
 
 # TODO: Make more efficient!
-def summarize_matches(osm_segments, ref_segments, reference_data, final_matches, attr, org_ref_id_col):
+def summarize_matches(osm_segments, final_matches, attr):
 
     # Create dataframe with new and old ids and information on matches
+    # TODO: Prevent conversion to float of indices and ids?
     osm_merged = osm_segments.merge(final_matches.drop('geometry',axis=1), how='left', on='osmid')
-    ref_attr = ref_segments.merge(reference_data[[org_ref_id_col,attr]], on=org_ref_id_col)
-    ref_attr.drop('geometry',axis=1, inplace=True)
-    osm_merged = osm_merged.merge(ref_attr[['seg_id',attr]], on='seg_id', how='left')
+    #ref_attr = ref_segments.merge(reference_data[[org_ref_id_col,attr]], on=org_ref_id_col)
+    #ref_attr.drop('geometry',axis=1, inplace=True)
+    #osm_merged = osm_merged.merge(ref_attr[['seg_id',attr]], on='seg_id', how='left')
 
     org_ids = list(osm_merged['org_osmid'].unique())
 
@@ -291,7 +295,7 @@ def summarize_matches(osm_segments, ref_segments, reference_data, final_matches,
             majority_value = summed['length'].idxmax()
             matched_attributes[i] = majority_value
 
-    return matched_attributes   
+    return matched_attributes  
 
 ##############################
 
@@ -564,7 +568,7 @@ if __name__ == '__main__':
     ref_segments = create_segment_gdf(ref, segment_length=5)
     osm_segments = create_segment_gdf(osm, segment_length=5)
 
-    osm_segments['old_osmid'] = osm_segments.osmid
+    osm_segments['org_osmid'] = osm_segments.osmid
     osm_segments.osmid = osm_segments.seg_id
     osm_segments.drop('seg_id', axis=1, inplace=True)
 
