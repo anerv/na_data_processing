@@ -241,7 +241,6 @@ def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_
     matched_ids = osm_edges.loc[matched_data.matches_ix, 'osmid'].values
     matched_data['osmid'] = matched_ids
 
-
     print(f'{len(matched_data)} reference segments where matched to OSM edges')
 
     print(f'{ len(reference_data) - len(matched_data) } reference segments where not matched')
