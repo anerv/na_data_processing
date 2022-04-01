@@ -11,6 +11,51 @@ import networkx as nx
 import math
 
 #%%
+##############################
+
+def create_cycling_network(new_edges, original_nodes, original_graph, return_nodes=False):
+    # Create new OSMnx graph from a subset of edges of a larger graph OSMnx grap
+
+    '''
+    Arguments:
+        new_edges (geodataframe): the edges defining the new graph
+        original_nodes (geodataframe): the nodes from the larger graph
+        original_graph (NetworkX graph object): the larger graph
+        return_nodes (True/False): if True, return a tupple of the new graph and the nodes in the graph.
+
+    Returns:
+        new_graph: the new OSMnx graph object
+        new_nodes (geodataframe): The nodes in the new graph
+
+    '''
+
+    #Getting a list of unique nodes used by bike_edges
+    new_edges_index = pd.MultiIndex.to_frame(new_edges.index)
+    u = new_edges_index['u'].to_list()
+    v = new_edges_index['v'].to_list()
+
+    used_nodes = list(set().union(u,v))
+
+    #All nodes are copied to an new dataframe
+    new_nodes = original_nodes.copy(deep=True)
+
+    #Creating new column in bike_nodes with the index value
+    new_nodes['osmid'] = new_nodes.index
+
+    #Using list of nodes to mask out unnecessary nodes
+    new_nodes = new_nodes[new_nodes['osmid'].isin(used_nodes)]
+
+    #Drop column - not needed anymore 
+    new_nodes.drop(columns='osmid', inplace=True)
+
+    #Create graph from nodes and edge geodataframe
+    new_graph = ox.graph_from_gdfs(new_nodes, new_edges, graph_attrs=original_graph.graph)
+
+    if return_nodes:
+        return new_graph, new_nodes
+    
+    else:
+        return new_graph
 
 ##############################
 
@@ -84,6 +129,16 @@ def get_hausdorff_dist(osm_edge, ref_edge):
 
 def find_matches_buffer(geom, spatial_index, osm_data):
 
+    '''
+    Arguments:
+        geom (Shapely polygon): Geometry used to find intersecting OSM data
+        spatial_index: Spatial index for the OSM data
+        osm_data (geodataframe): Data to be matched to the geometry
+
+    Returns:
+        precise_matches_index (list): A list with the indices of OSM features which intersects the buffer geom.
+    '''
+
     possible_matches_index = list(spatial_index.intersection(geom.bounds))
     possible_matches = osm_data.iloc[possible_matches_index]
 
@@ -95,6 +150,21 @@ def find_matches_buffer(geom, spatial_index, osm_data):
 ##############################
 
 def return_buffer_matches(reference_data, osm_data, ref_id_col, dist):
+
+    '''
+    Function which for each feature/geometry in the reference_data buffers the geometry,
+    and the finds features in the osm_data that intersects the buffer. 
+
+    Arguments:
+        reference_data (geodataframe): Data to buffer and find intersecting features in osm_data
+        osm_data (geodataframe): Data to test for intersection with reference_data buffers
+        ref_id_col (str): Name of column with unique id for reference features
+        dist (numeric): How much the geometries should be buffered (in meters)
+
+    Returns:
+        reference_buff (dataframe): A dataframe with the original index and ids of the reference data and a new column with lists of indices of intersecting osm features.
+    
+    '''
 
     assert osm_data.crs == reference_data.crs, 'Data not in the same crs!'
 
@@ -118,6 +188,17 @@ def return_buffer_matches(reference_data, osm_data, ref_id_col, dist):
 ##############################
 
 def get_segments(linestring, seg_length):
+
+    '''
+    Convert a Shapely LineString into segments of a speficied length.
+
+    Arguments:
+        linestring (Shapely LineString): Line to be cut into segments
+        seg_length (numerical): The length of the segments
+
+    Returns:
+        lines (Shapely MultiLineString): A multilinestring consisting of the line segments.
+    '''
 
     org_length = linestring.length
 
@@ -156,6 +237,8 @@ def get_segments(linestring, seg_length):
 
 def merge_multiline(line_geom):
 
+    # Convert a Shapely MultiLinestring into a Linestring
+
     if line_geom.geom_type == 'MultiLineString':
         line_geom = linemerge(line_geom)
 
@@ -165,6 +248,17 @@ def merge_multiline(line_geom):
 ##############################
 
 def create_segment_gdf(gdf, segment_length):
+
+    '''
+    Takes a geodataframe with linestrings and converts it into shorter segments.
+
+    Arguments:
+        gdf (geodataframe): Geodataframe with linestrings to be converted to shorter segments
+        segment_length (numerical): The length of the segments
+
+    Returns:
+        segments_gdf (geodataframe): New geodataframe with segments and new unique ids (seg_id)
+    '''
 
     gdf['geometry'] = gdf['geometry'].apply(lambda x: merge_multiline(x))
     assert gdf.geometry.geom_type.unique()[0] == 'LineString'
@@ -186,6 +280,21 @@ def create_segment_gdf(gdf, segment_length):
 
 # Function for finding the best out of potential/possible matches
 def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angular_threshold, hausdorff_threshold):
+    '''
+    Finds the best match out of potential matches identifed with a buffer method. 
+    Computes angle and hausdorff and find best match within threshold, if any exist.
+
+    Arguments:
+        buffer_matches(dataframe): Outcome of buffer intersection step
+        ref_index: the index of the reference_edge locating it in the original dataset with reference segments
+        osm_edges (geodataframe): osm_edges to be matched to the reference_edge
+        reference_edge (linestring): edge currently being matched to corresponding edge in osm_edges
+        angular_threshold (numerical): Threshold for max angle between lines considered a match (in degrees)
+        hausdorff_threshold: Threshold for max Hausdorff distance between lines considered a match (in meters)
+    
+    Returns:
+        best_osm_index: The index of the osm_edge identified as the best match. None if no match is found.
+    '''
 
     potential_matches = osm_edges[['osmid','geometry']].loc[buffer_matches.loc[ref_index,'matches_index']].copy(deep=True)
 
@@ -231,6 +340,19 @@ def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angula
 ##############################
 
 def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_threshold=30, hausdorff_threshold=12):
+    '''
+    Finds the best/correct matches in two datasets with linestrings, from an initial matching based on a buffered intersection.
+
+    Arguments:
+        buffer_matches (dataframe): Outcome of buffer intersection step
+        reference_data (geodataframe): reference data to be matched to osm data
+        osm_edges (geodataframe): osm data to be matched to reference data
+        angular_threshold (numerical): Threshold for max angle between lines considered a match (in degrees)
+        hausdorff_threshold: Threshold for max Hausdorff distance between lines considered a match (in meters)
+
+    Returns:
+        matched_data (geodataframe): Reference data with additional columns specifying the index and ids of matched osm edges
+    '''
 
     # Get edges matched with buffer
     matched_data = reference_data.loc[buffer_matches.index].copy(deep=True)
@@ -254,6 +376,17 @@ def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_
 
 def update_osm(osm_segments, osm_data, final_matches, attr):
 
+    '''
+    Update osm_dataset based on the attributes of the reference segments each OSM feature's segments have been matched to.
+
+    Arguments:
+        osm_segments (geodataframe): the osm_segments used in the matching process
+        osm_data (geodataframe): original osm data to be updated
+        final_matches (geodataframe): the result of the matching process
+        attr (str): name of column in final_matches data with attribute to be transfered to osm data
+
+    '''
+
     ids_attr_dict = summarize_matches(osm_segments, final_matches, attr)
 
     attr_df = pd.DataFrame.from_dict(ids_attr_dict, orient='index')
@@ -269,13 +402,20 @@ def update_osm(osm_segments, osm_data, final_matches, attr):
 # TODO: Make more efficient!
 def summarize_matches(osm_segments, final_matches, attr):
 
-    # Create dataframe with new and old ids and information on matches
-    # TODO: Prevent conversion to float of indices and ids?
-    osm_merged = osm_segments.merge(final_matches.drop('geometry',axis=1), how='left', on='osmid')
-    #ref_attr = ref_segments.merge(reference_data[[org_ref_id_col,attr]], on=org_ref_id_col)
-    #ref_attr.drop('geometry',axis=1, inplace=True)
-    #osm_merged = osm_merged.merge(ref_attr[['seg_id',attr]], on='seg_id', how='left')
+    '''
+    Creates a dictionary with the original feature ids and the attribute they have been matched to
 
+    Arguments:
+        osm_segments (geodataframe): osm_segments used in the analysis
+        final_matches: reference_data with information about corresponding osm segments
+        attr (str): name of column in final_matches data with attribute to be transfered to osm data
+
+    '''
+
+    # TODO: Prevent conversion to float of indices and ids?
+    #Create dataframe with new and old ids and information on matches
+    osm_merged = osm_segments.merge(final_matches.drop('geometry',axis=1), how='left', on='osmid')
+    
     org_ids = list(osm_merged['org_osmid'].unique())
 
     matched_attributes = {}
@@ -353,7 +493,7 @@ def create_osmnx_graph(gdf):
     (I.e. Nodes indexed by osmid, nodes contain columns with x and y coordinates, edges is multiindexed by u, v, key).
     Converts MultiLineStrings to LineStrings - assumes that there are no gaps between the lines in the MultiLineString
 
-    OBS! Current version does not fix topology.
+    OBS! Current version does not fix issues with topology.
 
     Parameters
     ----------
