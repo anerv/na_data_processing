@@ -1,13 +1,15 @@
-'''
-Script for matching road networks.
-'''
-# TODO: Documentation
+# Script for matching road networks
 
 # TODO: Functionality for doing analysis grid by grid!!
 
-# Load bigger dataset
+    # Load bigger dataset
 
-# Function for creating grid for entire dataset 
+    # Create grid for entire dataset
+    # Create analysis grid (buffered grid)
+    # Assign all data to grid and analysis grid
+    # Functionality for running analysis cell by cell
+    # How to store results most efficiently? Only keep relationship between ref_segments and osm_segments until the whole area is done
+
 
 #%%
 import pickle
@@ -114,7 +116,6 @@ if os.path.exists('../data/osm_segments_full.gpkg'):
 
 else:
     osm_segments = mf.create_segment_gdf(osm_edges, segment_length=10)
-    #osm_segments['org_osmid'] = osm_segments.osmid
     osm_segments.rename(columns={'osmid':'org_osmid'}, inplace=True)
     osm_segments.rename(columns={'seg_id':'osmid'}, inplace=True) # Because function assumes an id column names osmid
     osm_segments.set_crs(crs, inplace=True)
@@ -141,6 +142,7 @@ osm_updated = mf.update_osm(osm_segments=osm_segments, osm_data=osm_edges, final
 
 #%%
 '''
+# Export matches
 # Get matched and non-matched segments
 matched_osm_ids = final_matches.osmid.to_list()
 osm_matched = osm_segments[osm_segments['osmid'].isin(matched_osm_ids)]
