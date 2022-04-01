@@ -42,8 +42,8 @@ print('Settings loaded!')
 osm = pyrosm.OSM(osm_fp)
 
 extra_attr = ['cycleway:left','cycleway:right','cycleway:both','cycleway:width',
-            'cycleway:left:width','cycleway:right:width','cycleway:both:width','bicycle_road',
-            'cycleway:surface','cyclestreet','sidewalk','crossing','barrier','bollard','flashing_lights']
+            'cycleway:left:width','cycleway:right:width','cycleway:both:width','bicycle_road','oneway_bicycle'
+            'cycleway:surface','cyclestreet','sidewalk','crossing','barrier','bollard','flashing_lights','proposed','construction']
 
 nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
 
@@ -78,9 +78,11 @@ for q in queries:
     ox_edges.loc[ox_filtered.index, 'cycling_infra'] = 'yes'
 
 ox_edges.cycling_infra.value_counts()
+#%%
+# TODO: Filter out edges with irrelevant highway types
+unused_highway_values = ['proposed','construction','disused','elevator','platform','bus_stop','step','steps','corridor','raceway']
 
-# TODO: Filter out proposed/no longer existing infrastructure!
-
+ox_edges.loc[ox_edges.highway not in unused_highway_values]
 #%%  
 # Recreate graph with new attribute to simplify 
 G_updated = ox.graph_from_gdfs(ox_nodes, ox_edges) # type is MultiDiGraph
@@ -95,12 +97,12 @@ G_sim_un = ox.get_undirected(G_sim)
 # Project to project crs
 G_sim_un = ox.project_graph(G_sim_un, to_crs=crs)
 
-# Recreate ox_edges and nodes to be used in matching process
+# Get simplified ox_edges and nodes to be used in matching process
 ox_nodes_s, ox_edges_s = ox.graph_to_gdfs(G_sim_un)
 
 #%%
-# Create unique id
-ox_edges_s['old_osmid'] = ox_edges_s.osmid
+# Create unique id (due to the way the network is created, several edges can have the same osm id)
+ox_edges_s['first_osmid'] = ox_edges_s.osmid
 
 ox_edges_s.reset_index(inplace=True)
 
@@ -115,6 +117,7 @@ assert len(ox_edges_s.osmid.unique()) == len(ox_edges_s)
 assert ox_edges_s.crs == crs, 'Data is in wrong crs!'
 
 #%%
+# Export data
 if use_postgres:
 
     print('Saving data to PostgreSQL!')
