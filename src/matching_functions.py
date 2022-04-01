@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import directed_hausdorff
 from shapely.ops import nearest_points, split, linemerge, snap, substring
-from shapely.geometry import Point, MultiPoint, LineString, MultiLineString
+from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, box
 import momepy
 import osmnx as ox
 import networkx as nx
@@ -583,6 +583,47 @@ def clean_col_names(df):
 
     return df
     
+##############################
+
+def create_grid_bounds(gdf, cell_size):
+    '''
+    Create grid covering an area defined by the bounds of a geodataframe
+
+    Arguments:
+        gdf (geodataframe): geometries whose bound define the extent of the grid
+        cell_size (numerical): desired cell size in the grid
+    '''
+    
+    # total area for the grid
+    xmin, ymin, xmax, ymax= gdf.total_bounds
+
+    cell_size = 1000 #(xmax-xmin)/n_cells
+
+    # create the cells in a loop
+    grid_cells = []
+    for x0 in np.arange(xmin, xmax+cell_size, cell_size ):
+        for y0 in np.arange(ymin, ymax+cell_size, cell_size):
+            # bounds
+            x1 = x0-cell_size
+            y1 = y0+cell_size
+            grid_cells.append( box(x0, y0, x1, y1)  )
+    grid = gpd.GeoDataFrame(grid_cells, columns=['geometry'], 
+                                    crs=gdf.crs)
+
+    return grid
+
+##############################
+
+def create_grid_geometry(gdf, cell_size):
+
+    geometry = gdf['geometry'].unary_union
+    geometry_cut = ox.utils_geo._quadrat_cut_geometry(geometry, quadrat_width=cell_size)
+
+    grid = gpd.GeoDataFrame(geometry=[geometry_cut], crs=gdf.crs)
+
+    grid = grid.explode(index_parts=False, ignore_index=True)
+
+    return grid
 #%%
 if __name__ == '__main__':
 

@@ -1,16 +1,5 @@
 # Script for matching road networks
 
-# TODO: Functionality for doing analysis grid by grid!!
-
-    # Load bigger dataset
-
-    # Create grid for entire dataset
-    # Create analysis grid (buffered grid)
-    # Assign all data to grid and analysis grid
-    # Functionality for running analysis cell by cell
-    # How to store results most efficiently? Only keep relationship between ref_segments and osm_segments until the whole area is done
-
-
 #%%
 import pickle
 import geopandas as gpd
@@ -123,9 +112,28 @@ else:
     osm_segments[['highway','osmid','org_osmid','geometry']].to_file('../data/osm_segments_full.gpkg', driver='GPKG')
 
 #%%
-# Get smaller subsets
-bounds = ref_segments.unary_union.bounds
+# TODO: Functionality for doing analysis grid by grid!!
+
+# Create grid and buffered grid
+
+grid = mf.create_grid_geometry(ref_segments, 1000)
+
+buffered_grid = grid.copy(deep=True)
+buffered_grid.geometry = buffered_grid.geometry.buffer(50)
+
+# Assign grid index to data
+# Assign buffered_grid index to data (there will be more than one for many!)
+
+# Functionality for running analysis cell by cell
+    # How to store results most efficiently? Only keep relationship between ref_segments and osm_segments until the whole area is done
+
+
+
+
 #%%
+# Get smaller subsets for testing
+bounds = ref_segments.total_bounds
+
 xmin = bounds[0]
 xmax = xmin + 3000
 ymin = bounds[1]
@@ -195,6 +203,4 @@ else:
     with open('../data/osm_updated.pickle', 'wb') as handle:
         pickle.dump(osm_updated, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-# %%
-
-# %%
+##%
