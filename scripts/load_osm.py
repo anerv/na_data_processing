@@ -79,19 +79,24 @@ for q in queries:
 
 ox_edges.cycling_infra.value_counts()
 #%%
-# TODO: Filter out edges with irrelevant highway types
+# Filter out edges with irrelevant highway types
 unused_highway_values = ['proposed','construction','disused','elevator','platform','bus_stop','step','steps','corridor','raceway']
 
-ox_edges.loc[ox_edges.highway not in unused_highway_values]
-#%%  
-# Recreate graph with new attribute to simplify 
-G_updated = ox.graph_from_gdfs(ox_nodes, ox_edges) # type is MultiDiGraph
+org_len = len(ox_edges)
+ox_edges = ox_edges.loc[~ox_edges.highway.isin(unused_highway_values)]
+new_len = len(ox_edges)
 
+print(f'{org_len - new_len} edges where removed')
+
+G_updated = mf.create_cycling_network(ox_edges, ox_nodes, G) # type is MultiDiGraph
+
+#%%
+# Simplify grap
 G_sim = sf.simplify_graph(G_updated, attributes = ['cycling_infra','highway'])
 
 # TODO: Consolidate intersections? 
 
-# Get undirected now
+# Get undirected
 G_sim_un = ox.get_undirected(G_sim)
 
 # Project to project crs
