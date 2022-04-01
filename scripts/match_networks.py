@@ -9,7 +9,6 @@ Script for matching road networks.
 
 # Function for creating grid for entire dataset 
 
-# TODO: Fix Update OSM function
 #%%
 import pickle
 import geopandas as gpd
@@ -20,6 +19,7 @@ from src import matching_functions as mf
 import osmnx as ox
 import matplotlib.pyplot as plt
 import os.path
+import dask_geopandas as dgpd
 #%%
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
@@ -123,10 +123,12 @@ else:
 
 #%%
 # Get smaller subsets
-xmin = 721371
-xmax = xmin + 2000
-ymin = 6170833
-ymax = ymin + 2000
+bounds = ref_segments.unary_union.bounds
+#%%
+xmin = bounds[0]
+xmax = xmin + 3000
+ymin = bounds[1]
+ymax = ymin + 3000
 
 osm_segments = osm_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
 ref_segments = ref_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
@@ -138,30 +140,26 @@ final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_e
 osm_updated = mf.update_osm(osm_segments=osm_segments, osm_data=osm_edges, final_matches=final_matches, attr='vejklasse')
 
 #%%
-# To get those OSM edges who have been matched:
-
-# References edges that have been matched:
-
-# Non-matched reference edges:
-
-#%%
 '''
-id_matches = final_matches.seg_id.to_list()
-matched = ref_segments.loc[ref_segments.seg_id.isin(id_matches)]
-not_matched = ref_segments.loc[~ref_segments.seg_id.isin(id_matches)]
+# Get matched and non-matched segments
+matched_osm_ids = final_matches.osmid.to_list()
+osm_matched = osm_segments[osm_segments['osmid'].isin(matched_osm_ids)]
 
-matched = matched.merge(final_matches, on='seg_id')
-matched = matched.astype({org_ref_id_col:'int64','seg_id':'int64','osmid':'int64','osm_index':'int64'})
-#
-osm_id_matches = final_matches.osmid.to_list()
-osm_matched = osm_segments.loc[osm_segments.osmid.isin(osm_id_matches)]
-osm_matched.to_file('../data/osm_matched.gpkg', driver='GPKG')
+matched_seg_ids = final_matches.seg_id.to_list()
+ref_matched = ref_segments[ref_segments.seg_id.isin(matched_seg_ids)]
 
-matched.to_file('../data/matched.gpkg', driver='GPKG')
-not_matched.to_file('../data/not_matched.gpkg', driver='GPKG')
+ref_not_matched = ref_segments[~ref_segments.index.isin(ref_matched.index)]
 
-ref_segments.to_file('../data/ref_segments_test.gpkg', driver='GPKG')
-osm_segments.to_file('../data/osm_segments_test.gpkg', driver='GPKG')
+ref_not_matched.to_file('../data/ref_not_matched_april.gpkg',driver='GPKG')
+ref_matched.to_file('../data/ref_matched_april.gpkg',driver='GPKG')
+osm_matched.to_file('../data/osm_matched_april.gpkg', driver='GPKG')
+osm_segments.to_file('../data/osm_segments_april.gpkg', driver='GPKG')
+ref_segments.to_file('../data/ref_segments_april.gpkg', driver='GPKG')
+
+osm_edges[['highway','geometry']].to_file('../data/osm_edges_april.gpkg',driver='GPKG')
+
+osm_updated[['highway','geometry','vejklasse']].to_file('../data/osm_updated_april.gpkg',driver='GPKG')
+
 '''
 
 #%% 
