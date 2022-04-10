@@ -496,3 +496,37 @@ else:
         assert b in correct_osm_matches_ix
 
     assert len(correct_osm_matches_ix) == len(buffer_matches['matches_index'].loc[0])
+
+
+def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_threshold=30, hausdorff_threshold=12):
+    '''
+    Finds the best/correct matches in two datasets with linestrings, from an initial matching based on a buffered intersection.
+
+    Arguments:
+        buffer_matches (dataframe): Outcome of buffer intersection step
+        reference_data (geodataframe): reference data to be matched to osm data
+        osm_edges (geodataframe): osm data to be matched to reference data
+        angular_threshold (numerical): Threshold for max angle between lines considered a match (in degrees)
+        hausdorff_threshold: Threshold for max Hausdorff distance between lines considered a match (in meters)
+
+    Returns:
+        matched_data (geodataframe): Reference data with additional columns specifying the index and ids of matched osm edges
+    '''
+
+    # Get edges matched with buffer
+    matched_data = reference_data.loc[buffer_matches.index].copy(deep=True)
+
+    # Find best match within thresholds of angles and distance
+    matched_data['matches_id'] = matched_data.apply(lambda x: find_best_match(buffer_matches, ref_index=x.name, osm_edges=osm_edges, reference_edge=x['geometry'], angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold), axis=1)
+    
+    matched_data.dropna(inplace = True)
+
+    # Get ids of matched osm edges
+    matched_ids = osm_edges.loc[matched_data.matches_id, 'osmid'].values
+    matched_data['osmid'] = matched_ids
+
+    print(f'{len(matched_data)} reference segments were matched to OSM edges')
+
+    print(f'{ len(reference_data) - len(matched_data) } reference segments were not matched')
+    
+    return matched_data

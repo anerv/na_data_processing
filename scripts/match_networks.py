@@ -106,7 +106,6 @@ else:
     ref_segments.dropna(subset=['geometry'],inplace=True)
     ref_segments.to_file('../data/ref_segments_full.gpkg', driver='GPKG')
 
-#%%
 if os.path.exists('../data/osm_segments_full.gpkg'):
     osm_segments = gpd.read_file('../data/osm_segments_full.gpkg')
     osm_segments.dropna(subset=['geometry'],inplace=True)
@@ -121,17 +120,14 @@ else:
 
 #%%
 # TODO: Functionality for doing analysis grid by grid!!
-
-# Functionality for running analysis cell by cell
-    # How to store results most efficiently? Only keep relationship between ref_segments and osm_segments until the whole area is done
+%%time
 
 # Create grid and buffered grid
-grid = mf.create_grid_bounds(ref_segments, 500)
+grid = mf.create_grid_bounds(ref_segments, 1000)
 grid['grid_id'] = grid.index
 buffered_grid = grid.copy(deep=True)
 buffered_grid.geometry = buffered_grid.geometry.buffer(50)
 
-#%%
 # Assign grid index to data
 ref_grid = gpd.overlay(ref_segments, grid, how='intersection', keep_geom_type=False)
 osm_grid = gpd.overlay(osm_segments, grid, how='intersection', keep_geom_type=False)
@@ -140,11 +136,49 @@ ref_grid_buffered = gpd.overlay(ref_segments, buffered_grid, how='intersection',
 osm_grid_buffered = gpd.overlay(osm_segments, buffered_grid, how='intersection', keep_geom_type=False)
 
 #%%
-# Get ref and osm segment ids referenced by regular and buffered grid
+%%time
+ref_id_col = 'seg_id'
+grid_ids = grid.grid_id.to_list()
+grid_ids = grid_ids[0:50]
 
-# Do analysis on buffered grid segments
+results = []
 
-# Only keep results from those in regular grid
+for g in grid_ids:
+
+    print(g)
+    
+    r_seg = ref_grid.loc[ref_grid.grid_id == g]
+    o_seg = osm_grid.loc[osm_grid.grid_id == g]
+    r_seg_b = ref_grid_buffered.loc[ref_grid_buffered.grid_id == g]
+    o_seg_b = osm_grid_buffered.loc[osm_grid_buffered.grid_id == g]
+
+    assert len(r_seg) <= len(r_seg_b) and len(o_seg) <= len(o_seg_b)
+
+    ref_id_list = r_seg[ref_id_col].to_list()
+
+    if len(r_seg) == 0 or len(o_seg) == 0:
+
+        print('No data in this cell')
+
+        continue
+
+    else:
+        buffer_matches = mf.overlay_buffer(reference_data=r_seg_b, osm_data=o_seg_b, ref_id_col='seg_id', dist=15)
+        print('Buffer matches found!')
+
+        if len(buffer_matches) > 0:
+            final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=o_seg_b, reference_data=r_seg_b, angular_threshold=30, hausdorff_threshold=17)
+            print('Final matches found!')
+            # Only keep results from those in regular grid
+            final_matches = final_matches.loc[final_matches[ref_id_col].isin(ref_id_list)]
+
+            ids_attr_dict = mf.summarize_matches(o_seg, final_matches, 'vejklasse')
+
+            # TODO: Find better way of saving results!
+            results.append(ids_attr_dict)
+
+            print('One cell analysed!')
+
 #%%
 # Get smaller subsets for testing
 bounds = ref_segments.total_bounds
@@ -219,4 +253,4 @@ else:
     with open('../data/osm_updated.pickle', 'wb') as handle:
         pickle.dump(osm_updated, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-# %%
+#%%

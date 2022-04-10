@@ -342,23 +342,45 @@ def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_
     matched_data = reference_data.loc[buffer_matches.index].copy(deep=True)
 
     # Find best match within thresholds of angles and distance
-    matched_data['matches_ix'] = matched_data.apply(lambda x: find_best_match(buffer_matches, ref_index=x.name, osm_edges=osm_edges, reference_edge=x['geometry'], angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold), axis=1)
-    
+    matched_data['matches_id'] = matched_data.apply(lambda x: find_best_match(buffer_matches, ref_index=x.name, osm_edges=osm_edges, reference_edge=x['geometry'], angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold), axis=1)
+
+    # Drop rows where no match was found
     matched_data.dropna(inplace = True)
 
-    # Get ids of matched osm edges
-    matched_ids = osm_edges.loc[matched_data.matches_ix, 'osmid'].values
-    matched_data['osmid'] = matched_ids
+    print(f'{len(matched_data)} reference segments were matched to OSM edges')
 
-    print(f'{len(matched_data)} reference segments where matched to OSM edges')
+    print(f'{ len(reference_data) - len(matched_data) } reference segments were not matched')
 
-    print(f'{ len(reference_data) - len(matched_data) } reference segments where not matched')
-    
     return matched_data
 
 ##############################
 
 def update_osm(osm_segments, osm_data, final_matches, attr):
+
+    '''
+    Update osm_dataset based on the attributes of the reference segments each OSM feature's segments have been matched to.
+
+    Arguments:
+        osm_segments (geodataframe): the osm_segments used in the matching process
+        osm_data (geodataframe): original osm data to be updated
+        final_matches (geodataframe): the result of the matching process
+        attr (str): name of column in final_matches data with attribute to be transfered to osm data
+
+    '''
+
+    ids_attr_dict = summarize_matches(osm_segments, final_matches, attr)
+
+    attr_df = pd.DataFrame.from_dict(ids_attr_dict, orient='index')
+    attr_df.reset_index(inplace=True)
+    attr_df.rename(columns={'index':'org_osmid',0:attr}, inplace=True)
+
+    updated_osm = osm_data.merge(attr_df, left_on='osmid', right_on='org_osmid', how='left')
+
+    return updated_osm
+
+##############################
+
+def update_osm_grid(osm_segments, osm_data, final_matches, attr):
 
     '''
     Update osm_dataset based on the attributes of the reference segments each OSM feature's segments have been matched to.
@@ -398,6 +420,7 @@ def summarize_matches(osm_segments, final_matches, attr):
 
     # TODO: Prevent conversion to float of indices and ids?
     #Create dataframe with new and old ids and information on matches
+    final_matches['osmid'] = final_matches['matches_id']
     osm_merged = osm_segments.merge(final_matches.drop('geometry',axis=1), how='left', on='osmid')
     
     org_ids = list(osm_merged['org_osmid'].unique())
