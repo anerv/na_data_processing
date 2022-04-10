@@ -1,5 +1,9 @@
 # Script for matching road networks
 
+# TODO: Functionality for running analysis using a grid
+
+# TODO: Look into where dask-geopandas can be used
+
 #%%
 import pickle
 import geopandas as gpd
@@ -11,6 +15,8 @@ import osmnx as ox
 import matplotlib.pyplot as plt
 import os.path
 import dask_geopandas as dgpd
+import numpy as np
+
 #%%
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
@@ -91,6 +97,7 @@ print(f'Number of rows in reference_data table: {len(reference_data)}')
 #%%
 if os.path.exists('../data/ref_segments_full.gpkg'):
     ref_segments = gpd.read_file('../data/ref_segments_full.gpkg')
+    ref_segments.dropna(subset=['geometry'],inplace=True)
 
 else:
     # Create segments
@@ -102,6 +109,7 @@ else:
 #%%
 if os.path.exists('../data/osm_segments_full.gpkg'):
     osm_segments = gpd.read_file('../data/osm_segments_full.gpkg')
+    osm_segments.dropna(subset=['geometry'],inplace=True)
 
 else:
     osm_segments = mf.create_segment_gdf(osm_edges, segment_length=10)
@@ -114,22 +122,29 @@ else:
 #%%
 # TODO: Functionality for doing analysis grid by grid!!
 
-# Create grid and buffered grid
-
-grid = mf.create_grid_geometry(ref_segments, 1000)
-
-buffered_grid = grid.copy(deep=True)
-buffered_grid.geometry = buffered_grid.geometry.buffer(50)
-
-# Assign grid index to data
-# Assign buffered_grid index to data (there will be more than one for many!)
-
 # Functionality for running analysis cell by cell
     # How to store results most efficiently? Only keep relationship between ref_segments and osm_segments until the whole area is done
 
+# Create grid and buffered grid
+grid = mf.create_grid_bounds(ref_segments, 500)
+grid['grid_id'] = grid.index
+buffered_grid = grid.copy(deep=True)
+buffered_grid.geometry = buffered_grid.geometry.buffer(50)
 
+#%%
+# Assign grid index to data
+ref_grid = gpd.overlay(ref_segments, grid, how='intersection', keep_geom_type=False)
+osm_grid = gpd.overlay(osm_segments, grid, how='intersection', keep_geom_type=False)
 
+ref_grid_buffered = gpd.overlay(ref_segments, buffered_grid, how='intersection', keep_geom_type=False)
+osm_grid_buffered = gpd.overlay(osm_segments, buffered_grid, how='intersection', keep_geom_type=False)
 
+#%%
+# Get ref and osm segment ids referenced by regular and buffered grid
+
+# Do analysis on buffered grid segments
+
+# Only keep results from those in regular grid
 #%%
 # Get smaller subsets for testing
 bounds = ref_segments.total_bounds
@@ -141,8 +156,9 @@ ymax = ymin + 3000
 
 osm_segments = osm_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
 ref_segments = ref_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
+
 #%%
-buffer_matches = mf.return_buffer_matches(reference_data=ref_segments, osm_data=osm_segments, ref_id_col='seg_id', dist=15)
+buffer_matches = mf.overlay_buffer(reference_data=ref_segments, osm_data=osm_segments, ref_id_col='seg_id', dist=15)
 #%%
 final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, angular_threshold=30, hausdorff_threshold=17)
 #%%
@@ -203,4 +219,4 @@ else:
     with open('../data/osm_updated.pickle', 'wb') as handle:
         pickle.dump(osm_updated, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-##%
+# %%
