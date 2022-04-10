@@ -376,3 +376,123 @@ def save_best_match(final_matches, ref_id_col, ref_id, osm_index, osm_id):
     for key, value in test_values_id.items():
         osm_ix = final_matches['osmid'].loc[final_matches.seg_id==key].values[0]
         assert osm_ix == value
+
+def overlay_buffer(osm_data, reference_data, dist, ref_id_col):
+
+    assert osm_data.crs == reference_data.crs, 'Data not in the same crs!'
+
+    reference_buff = reference_data[[ref_id_col, 'geometry']].copy(deep=True)
+    reference_buff.geometry = reference_buff.geometry.buffer(distance=dist)
+
+    # Overlay buffered geometries and osm segments
+    joined = gpd.overlay(reference_buff, osm_data, how='intersection', keep_geom_type=False)
+    
+    # Group by id - find all matches for each ref segment
+    grouped = joined.groupby(ref_id_col)
+
+    reference_buff['matches_id'] = None
+
+    for group_id, group in grouped:
+
+        matches_ids = group.osmid.to_list()
+
+        ix = reference_buff.loc[reference_buff[ref_id_col] == group_id].index
+
+        reference_buff.at[ix[0], 'matches_id'] = matches_ids
+
+    # Count matches
+    reference_buff['count'] = reference_buff['matches_id'].apply(lambda x: len(x) if type(x) == list else 0)
+
+    reference_buff = reference_buff[reference_buff['count'] >= 1]
+
+    reference_buff.drop('geometry', axis=1, inplace=True)
+
+    return reference_buff
+
+
+
+def find_matches_buffer(geom, spatial_index, osm_data):
+
+    '''
+    Arguments:
+        geom (Shapely polygon): Geometry used to find intersecting OSM data
+        spatial_index: Spatial index for the OSM data
+        osm_data (geodataframe): Data to be matched to the geometry
+
+    Returns:
+        precise_matches_index (list): A list with the indices of OSM features which intersects the buffer geom.
+    '''
+
+    possible_matches_index = list(spatial_index.intersection(geom.bounds))
+    possible_matches = osm_data.iloc[possible_matches_index]
+
+    precise_matches = possible_matches[possible_matches.intersects(geom)]
+    precise_matches_index = list(precise_matches.index)
+
+    return precise_matches_index
+
+##############################
+
+def return_buffer_matches(reference_data, osm_data, ref_id_col, dist):
+
+    '''
+    Function which for each feature/geometry in the reference_data buffers the geometry,
+    and the finds features in the osm_data that intersects the buffer. 
+
+    Arguments:
+        reference_data (geodataframe): Data to buffer and find intersecting features in osm_data
+        osm_data (geodataframe): Data to test for intersection with reference_data buffers
+        ref_id_col (str): Name of column with unique id for reference features
+        dist (numeric): How much the geometries should be buffered (in meters)
+
+    Returns:
+        reference_buff (dataframe): A dataframe with the original index and ids of the reference data and a new column with lists of indices of intersecting osm features.
+    
+    '''
+
+    assert osm_data.crs == reference_data.crs, 'Data not in the same crs!'
+
+    reference_buff = reference_data[[ref_id_col, 'geometry']].copy(deep=True)
+    reference_buff.geometry = reference_buff.geometry.buffer(distance=dist)
+
+    # Create spatial index on osm data
+    osm_sindex = osm_data.sindex
+
+    reference_buff['matches_index'] = reference_buff['geometry'].apply(lambda x: find_matches_buffer(x, osm_sindex, osm_data))
+
+    # Drop geometry column
+    reference_buff.drop('geometry', axis=1, inplace=True)
+
+    # Only return rows with a result
+    reference_buff['count'] = reference_buff['matches_index'].apply(lambda x: len(x))
+    reference_buff = reference_buff[reference_buff['count'] > 1]
+  
+    return reference_buff
+
+
+# Test buffer matches function
+ref = gpd.read_file('../tests/geodk_small_test.gpkg')
+osm = gpd.read_file('../tests/osm_small_test.gpkg')
+
+fot_id = 1095203923
+index = ref.loc[ref.fot_id==fot_id].index.values[0]
+correct_osm_matches_id = [17463, 17466, 17467, 17472, 17473, 58393, 58394]
+correct_osm_matches_ix = osm.loc[osm.osmid.isin(correct_osm_matches_id)].index.to_list()
+
+buffer_matches = overlay_buffer(ref, osm, 'fot_id', 10)
+
+assert ['fot_id','matches_index'] == buffer_matches.columns.to_list()
+
+assert type(buffer_matches) == gpd.geodataframe.GeoDataFrame
+
+if len(buffer_matches) > 1:
+    for b in buffer_matches['matches_index'].loc[index]:
+        assert b in correct_osm_matches_ix
+
+    assert len(correct_osm_matches_ix) == len(buffer_matches['matches_index'].loc[index])
+
+else:
+    for b in buffer_matches['matches_index'].loc[0]:
+        assert b in correct_osm_matches_ix
+
+    assert len(correct_osm_matches_ix) == len(buffer_matches['matches_index'].loc[0])

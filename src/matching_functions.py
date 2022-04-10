@@ -10,7 +10,10 @@ import osmnx as ox
 import networkx as nx
 import math
 
+from sqlalchemy import over
+
 #%%
+
 ##############################
 
 def create_cycling_network(new_edges, original_nodes, original_graph, return_nodes=False):
@@ -124,67 +127,6 @@ def get_hausdorff_dist(osm_edge, ref_edge):
     return hausdorff_dist
 
  
-
-##############################
-
-def find_matches_buffer(geom, spatial_index, osm_data):
-
-    '''
-    Arguments:
-        geom (Shapely polygon): Geometry used to find intersecting OSM data
-        spatial_index: Spatial index for the OSM data
-        osm_data (geodataframe): Data to be matched to the geometry
-
-    Returns:
-        precise_matches_index (list): A list with the indices of OSM features which intersects the buffer geom.
-    '''
-
-    possible_matches_index = list(spatial_index.intersection(geom.bounds))
-    possible_matches = osm_data.iloc[possible_matches_index]
-
-    precise_matches = possible_matches[possible_matches.intersects(geom)]
-    precise_matches_index = list(precise_matches.index)
-
-    return precise_matches_index
-
-##############################
-
-def return_buffer_matches(reference_data, osm_data, ref_id_col, dist):
-
-    '''
-    Function which for each feature/geometry in the reference_data buffers the geometry,
-    and the finds features in the osm_data that intersects the buffer. 
-
-    Arguments:
-        reference_data (geodataframe): Data to buffer and find intersecting features in osm_data
-        osm_data (geodataframe): Data to test for intersection with reference_data buffers
-        ref_id_col (str): Name of column with unique id for reference features
-        dist (numeric): How much the geometries should be buffered (in meters)
-
-    Returns:
-        reference_buff (dataframe): A dataframe with the original index and ids of the reference data and a new column with lists of indices of intersecting osm features.
-    
-    '''
-
-    assert osm_data.crs == reference_data.crs, 'Data not in the same crs!'
-
-    reference_buff = reference_data[[ref_id_col, 'geometry']].copy(deep=True)
-    reference_buff.geometry = reference_buff.geometry.buffer(distance=dist)
-
-    # Create spatial index on osm data
-    osm_sindex = osm_data.sindex
-
-    reference_buff['matches_index'] = reference_buff['geometry'].apply(lambda x: find_matches_buffer(x, osm_sindex, osm_data))
-
-    # Drop geometry column
-    reference_buff.drop('geometry', axis=1, inplace=True)
-
-    # Only return rows with a result
-    reference_buff['count'] = reference_buff['matches_index'].apply(lambda x: len(x))
-    reference_buff = reference_buff[reference_buff['count'] > 1]
-  
-    return reference_buff
-
 ##############################
 
 def get_segments(linestring, seg_length):
@@ -278,9 +220,51 @@ def create_segment_gdf(gdf, segment_length):
 
 ##############################
 
+def find_matches_from_group(group_id, groups):
+
+    group = groups.get_group(group_id)
+
+    matches = list(group.osmid)
+
+    return matches
+
+##############################
+
+def overlay_buffer(osm_data, reference_data, dist, ref_id_col):
+
+    assert osm_data.crs == reference_data.crs, 'Data not in the same crs!'
+
+    reference_buff = reference_data[[ref_id_col, 'geometry']].copy(deep=True)
+    reference_buff.geometry = reference_buff.geometry.buffer(distance=dist)
+
+    # Overlay buffered geometries and osm segments
+    joined = gpd.overlay(reference_buff, osm_data, how='intersection', keep_geom_type=False)
+
+    # Group by id - find all matches for each ref segment
+    grouped = joined.groupby(ref_id_col)
+
+    reference_buff['matches_id'] = None
+
+    group_ids = grouped.groups.keys()
+
+    reference_buff['matches_id'] = reference_buff.apply(lambda x: find_matches_from_group(x[ref_id_col], grouped) if x[ref_id_col] in group_ids else 0, axis=1)
+
+    # Count matches
+    reference_buff['count'] = reference_buff['matches_id'].apply(lambda x: len(x) if type(x) == list else 0)
+
+    # Remove rows with no matches
+    reference_buff = reference_buff[reference_buff['count'] >= 1]
+
+    reference_buff.drop('geometry', axis=1, inplace=True)
+
+    return reference_buff
+
+##############################
+
 # Function for finding the best out of potential/possible matches
 def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angular_threshold, hausdorff_threshold):
     '''
+
     Finds the best match out of potential matches identifed with a buffer method. 
     Computes angle and hausdorff and find best match within threshold, if any exist.
 
@@ -295,8 +279,8 @@ def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angula
     Returns:
         best_osm_index: The index of the osm_edge identified as the best match. None if no match is found.
     '''
-
-    potential_matches = osm_edges[['osmid','geometry']].loc[buffer_matches.loc[ref_index,'matches_index']].copy(deep=True)
+    potential_matches = osm_edges[['osmid','geometry']].loc[osm_edges.osmid.isin(buffer_matches.loc[ref_index,'matches_id'])].copy(deep=True)
+    #potential_matches = osm_edges[['osmid','geometry']].loc[buffer_matches.loc[ref_index,'matches_index']].copy(deep=True)
 
     potential_matches['hausdorff_dist'] = potential_matches['geometry'].apply(lambda x: get_hausdorff_dist(osm_edge=x, ref_edge=reference_edge))
     potential_matches['angle'] = potential_matches['geometry'].apply(lambda x: get_angle(x, reference_edge))
@@ -518,7 +502,6 @@ def create_osmnx_graph(gdf):
     if 'MultiLineString' in geom_types:
         gdf = gdf.explode(index_parts=False)
 
-    # TODO: Convert linestrings to edges?
     G = momepy.gdf_to_nx(gdf, approach='primal', directed=True)
 
     nodes, edges = momepy.nx_to_gdf(G)
@@ -624,6 +607,7 @@ def create_grid_geometry(gdf, cell_size):
     grid = grid.explode(index_parts=False, ignore_index=True)
 
     return grid
+    
 #%%
 if __name__ == '__main__':
 
@@ -684,33 +668,31 @@ if __name__ == '__main__':
 
     assert edges.index.names == ['u','v','key']
 
-    # Test buffer matches function
+    # Test overlay buffer matches function
     ref = gpd.read_file('../tests/geodk_small_test.gpkg')
     osm = gpd.read_file('../tests/osm_small_test.gpkg')
 
     fot_id = 1095203923
     index = ref.loc[ref.fot_id==fot_id].index.values[0]
     correct_osm_matches_id = [17463, 17466, 17467, 17472, 17473, 58393, 58394]
-    correct_osm_matches_ix = osm.loc[osm.osmid.isin(correct_osm_matches_id)].index.to_list()
 
-    buffer_matches = return_buffer_matches(ref, osm, 'fot_id', 10)
+    buffer_matches = overlay_buffer(reference_data=ref, osm_data=osm, dist=10, ref_id_col='fot_id')
 
-    assert ['fot_id','matches_index'] == buffer_matches.columns.to_list()
+    assert ['fot_id','matches_id','count'] == buffer_matches.columns.to_list()
 
     assert type(buffer_matches) == gpd.geodataframe.GeoDataFrame
 
     if len(buffer_matches) > 1:
-        for b in buffer_matches['matches_index'].loc[index]:
-            assert b in correct_osm_matches_ix
+        for b in buffer_matches['matches_id'].loc[index]:
+            assert b in correct_osm_matches_id
 
-        assert len(correct_osm_matches_ix) == len(buffer_matches['matches_index'].loc[index])
+        assert len(correct_osm_matches_id) == len(buffer_matches['matches_id'].loc[index])
 
     else:
-        for b in buffer_matches['matches_index'].loc[0]:
-            assert b in correct_osm_matches_ix
+        for b in buffer_matches['matches_id'].loc[0]:
+            assert b in correct_osm_matches_id
 
-        assert len(correct_osm_matches_ix) == len(buffer_matches['matches_index'].loc[0])
-
+        assert len(correct_osm_matches_id) == len(buffer_matches['matches_id'].loc[0])
 
     # Tests for get_segments function
     test_line = LineString([[0,0],[53,0]])
@@ -756,7 +738,7 @@ if __name__ == '__main__':
     osm_segments.set_crs('EPSG:25832', inplace=True)
     ref_segments.set_crs('EPSG:25832', inplace=True)
 
-    buffer_matches = return_buffer_matches(osm_data=osm_segments, reference_data=ref_segments, ref_id_col='seg_id', dist=10)
+    buffer_matches = overlay_buffer(osm_data=osm_segments, reference_data=ref_segments, ref_id_col='seg_id', dist=10)
 
     matched_data = ref_segments.loc[buffer_matches.index].copy(deep=True)
 
@@ -776,9 +758,4 @@ if __name__ == '__main__':
         test_match = matched_data.loc[key, 'match']
         
         assert test_match == value, 'Unexpected match!'
-
-
-    # Test find_matches_from_buffer function
-
-
 
