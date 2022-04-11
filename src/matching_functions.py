@@ -279,16 +279,17 @@ def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angula
     Returns:
         best_osm_index: The index of the osm_edge identified as the best match. None if no match is found.
     '''
-    potential_matches = osm_edges[['osmid','geometry']].loc[osm_edges.osmid.isin(buffer_matches.loc[ref_index,'matches_id'])].copy(deep=True)
+    #potential_matches = osm_edges[['osmid','geometry']].loc[osm_edges.osmid.isin(buffer_matches.loc[ref_index,'matches_id'])].copy(deep=True)
 
-    potential_matches['angle'] = potential_matches.apply(lambda x: get_angle(x.geometry, reference_edge), axis=1)
+    potential_matches_ix = osm_edges.loc[osm_edges.osmid.isin(buffer_matches.loc[ref_index,'matches_id'])].index
+
+    osm_edges['angle'] = osm_edges.loc[potential_matches_ix].apply(lambda x: get_angle(x.geometry, reference_edge), axis=1)
 
     # Avoid computing Hausdorff distance to edges that fail the angle threshold
-    potential_matches['hausdorff_dist'] = potential_matches.apply(lambda x: get_hausdorff_dist(osm_edge=x.geometry, ref_edge=reference_edge) if x.angle <= angular_threshold else None, axis=1)
+    osm_edges['hausdorff_dist'] = osm_edges.loc[potential_matches_ix].apply(lambda x: get_hausdorff_dist(osm_edge=x.geometry, ref_edge=reference_edge) if x.angle <= angular_threshold else None, axis=1)
 
     # Find matches within thresholds out of all matches for this referehce geometry
-    potential_matches_subset = potential_matches[ (potential_matches.angle <= angular_threshold) & (potential_matches.hausdorff_dist <= hausdorff_threshold)].copy()
-
+    potential_matches_subset = osm_edges[ (osm_edges.angle <= angular_threshold) & (osm_edges.hausdorff_dist <= hausdorff_threshold) ].copy()
 
     if len(potential_matches_subset) == 0:
         
@@ -304,7 +305,7 @@ def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angula
         potential_matches_subset['angle'] = pd.to_numeric(potential_matches_subset['angle'])
         
         best_matches_index = potential_matches_subset[['hausdorff_dist','angle']].idxmin()
-        best_matches = potential_matches_subset.loc[best_matches_index].copy(deep=True)
+        best_matches = potential_matches_subset.loc[best_matches_index]
         
         best_matches = best_matches[~best_matches.index.duplicated(keep='first')] # Duplicates may appear if the same edge is the one with min dist and min angle
 
@@ -315,7 +316,7 @@ def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angula
         elif len(best_matches) > 1: # Take the one with the smallest hausdorff distance
             
             best_match_index = best_matches['hausdorff_dist'].idxmin()
-            best_match = potential_matches_subset.loc[best_match_index].copy(deep=True)
+            best_match = potential_matches_subset.loc[best_match_index] #.copy(deep=True)
             best_match = best_match[~best_match.index.duplicated(keep='first')]
     
             best_osm_ix = best_match.name 
@@ -637,7 +638,51 @@ def create_grid_geometry(gdf, cell_size):
     grid = grid.explode(index_parts=False, ignore_index=True)
 
     return grid
+
+##############################
+
+def analyse_grid_cell(grid_id, ref_grid, osm_grid, ref_grid_buffered, osm_grid_buffered, ref_id_col, angular_threshold=30, hausdorff_threshold=17):
     
+    print(grid_id)
+
+    #try: # Check if dictionary already exists
+     #   results
+    #except NameError:
+     #   results = {}
+
+    r_seg = ref_grid.loc[ref_grid.grid_id == grid_id]
+    o_seg = osm_grid.loc[osm_grid.grid_id == grid_id]
+    r_seg_b = ref_grid_buffered.loc[ref_grid_buffered.grid_id == grid_id]
+    o_seg_b = osm_grid_buffered.loc[osm_grid_buffered.grid_id == grid_id]
+
+    assert len(r_seg) <= len(r_seg_b) and len(o_seg) <= len(o_seg_b)
+
+    ref_id_list = r_seg[ref_id_col].to_list()
+
+    if len(r_seg) == 0 or len(o_seg) == 0:
+
+        #print('No data in this cell')
+        pass
+
+    else:
+        buffer_matches = overlay_buffer(reference_data=r_seg_b, osm_data=o_seg_b, ref_id_col=ref_id_col, dist=15)
+        #print('Buffer matches found!')
+
+        if len(buffer_matches) > 0:
+            final_matches = find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=o_seg_b, reference_data=r_seg_b, angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold)
+            #print('Final matches found!')
+
+            # Only keep results from those in regular grid
+            final_matches = final_matches.loc[final_matches[ref_id_col].isin(ref_id_list)]
+
+            ids_attr_dict = summarize_matches(o_seg, final_matches, 'vejklasse')
+
+            # Not interested in none values
+            ids_attr_dict = {key:val for key, val in ids_attr_dict.items() if val != 'none'}
+
+            #results = dict(results, **ids_attr_dict)
+
+    return ids_attr_dict
 #%%
 if __name__ == '__main__':
 

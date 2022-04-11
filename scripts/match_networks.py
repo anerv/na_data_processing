@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import os.path
 import dask_geopandas as dgpd
 import numpy as np
-
+from collections import ChainMap
 #%%
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
@@ -138,49 +138,23 @@ osm_grid_buffered = gpd.overlay(osm_segments, buffered_grid, how='intersection',
 %%time
 ref_id_col = 'seg_id'
 grid_ids = list(ref_grid.grid_id.unique())
-grid_ids = grid_ids[0:5]
 
-results = {}
+results = [mf.analyse_grid_cell(grid_id, ref_grid, osm_grid, ref_grid_buffered, osm_grid_buffered, ref_id_col) for grid_id in grid_ids]
 
-for g in grid_ids:
+all_results = dict(ChainMap(*results))
+#%%
+attr_df = pd.DataFrame.from_dict(all_results, orient='index')
+attr_df.reset_index(inplace=True)
+attr_df.rename(columns={'index':'org_osmid',0:'vejklasse'}, inplace=True)
 
-    print(g)
-    
-    r_seg = ref_grid.loc[ref_grid.grid_id == g]
-    o_seg = osm_grid.loc[osm_grid.grid_id == g]
-    r_seg_b = ref_grid_buffered.loc[ref_grid_buffered.grid_id == g]
-    o_seg_b = osm_grid_buffered.loc[osm_grid_buffered.grid_id == g]
+attr_df['org_osmid'] = attr_df['org_osmid'].astype(int)
 
-    assert len(r_seg) <= len(r_seg_b) and len(o_seg) <= len(o_seg_b)
+updated_osm = osm_edges.merge(attr_df, left_on='osmid', right_on='org_osmid', how='left')
 
-    ref_id_list = r_seg[ref_id_col].to_list()
-
-    if len(r_seg) == 0 or len(o_seg) == 0:
-
-        print('No data in this cell')
-
-        continue
-
-    else:
-        buffer_matches = mf.overlay_buffer(reference_data=r_seg_b, osm_data=o_seg_b, ref_id_col='seg_id', dist=15)
-        print('Buffer matches found!')
-
-        if len(buffer_matches) > 0:
-            final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=o_seg_b, reference_data=r_seg_b, angular_threshold=30, hausdorff_threshold=17)
-            print('Final matches found!')
-
-            # Only keep results from those in regular grid
-            final_matches = final_matches.loc[final_matches[ref_id_col].isin(ref_id_list)]
-
-            ids_attr_dict = mf.summarize_matches(o_seg, final_matches, 'vejklasse')
-
-            # Not interested in none values
-            ids_attr_dict = {key:val for key, val in ids_attr_dict.items() if val != 'none'}
-
-            results = dict(results, **ids_attr_dict)
-
-            print('One cell analysed!')
-
+#%%
+df = pd.DataFrame.from_dict(all_results, orient='index')
+df.reset_index(inplace=True)
+df.rename(columns={'index':'osmid',0:'vejklasse'}, inplace=True)
 #%%
 # Get smaller subsets for testing
 bounds = ref_segments.total_bounds
@@ -199,46 +173,6 @@ buffer_matches = mf.overlay_buffer(reference_data=ref_segments, osm_data=osm_seg
 final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, angular_threshold=30, hausdorff_threshold=17)
 
 #osm_updated = mf.update_osm(osm_segments=osm_segments, osm_data=osm_edges, final_matches=final_matches, attr='vejklasse')
-
-#%%
-
-def summarize_matches(osm_segments, final_matches, attr):
-
-    '''
-    Creates a dictionary with the original feature ids and the attribute they have been matched to
-
-    Arguments:
-        osm_segments (geodataframe): osm_segments used in the analysis
-        final_matches: reference_data with information about corresponding osm segments
-        attr (str): name of column in final_matches data with attribute to be transfered to osm data
-
-    '''
-
-    # TODO: Prevent conversion to float of indices and ids?
-    #Create dataframe with new and old ids and information on matches
-    final_matches['osmid'] = final_matches['matches_id']
-    osm_merged = osm_segments.merge(final_matches.drop('geometry',axis=1), how='left', on='osmid')
-    
-    org_ids = list(osm_merged['org_osmid'].unique())
-
-    matched_attributes = {}
-
-    for i in org_ids:
-        
-        feature = osm_merged.loc[osm_merged.org_osmid == i].copy(deep=True)
-        feature[attr] = feature[attr].fillna('none')
-
-        matched_values = feature[attr].unique()
-        if len(matched_values) == 1:
-            matched_attributes[i] = matched_values[0]
-
-        else:
-            feature['length'] = feature.geometry.length
-            summed = feature.groupby(attr).agg({'length': 'sum'})
-            majority_value = summed['length'].idxmax()
-            matched_attributes[i] = majority_value
-
-    return matched_attributes 
 
 #%%
 
@@ -297,15 +231,9 @@ else:
         pickle.dump(osm_updated, handle, protocol=pickle.HIGHEST_PROTOCOL)
 #%%
 %load_ext line_profiler
-#%%
-stats_lprun = %lprun -r -f mf.find_best_match mf.find_best_match()
-# %%
+
 stats_lprun = %lprun -r -f mf.find_best_match mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, angular_threshold=30, hausdorff_threshold=17)
 
+stats_lprun.print_stats()
+
 #%%
-%prun estimate_pi()
-#%%
-%prun -s cumulative estimate_pi()
-#%%
-import line_profiler
-# %%
