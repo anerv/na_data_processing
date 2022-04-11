@@ -280,13 +280,15 @@ def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angula
         best_osm_index: The index of the osm_edge identified as the best match. None if no match is found.
     '''
     potential_matches = osm_edges[['osmid','geometry']].loc[osm_edges.osmid.isin(buffer_matches.loc[ref_index,'matches_id'])].copy(deep=True)
-    #potential_matches = osm_edges[['osmid','geometry']].loc[buffer_matches.loc[ref_index,'matches_index']].copy(deep=True)
 
-    potential_matches['hausdorff_dist'] = potential_matches['geometry'].apply(lambda x: get_hausdorff_dist(osm_edge=x, ref_edge=reference_edge))
-    potential_matches['angle'] = potential_matches['geometry'].apply(lambda x: get_angle(x, reference_edge))
+    potential_matches['angle'] = potential_matches.apply(lambda x: get_angle(x.geometry, reference_edge), axis=1)
+
+    # Avoid computing Hausdorff distance to edges that fail the angle threshold
+    potential_matches['hausdorff_dist'] = potential_matches.apply(lambda x: get_hausdorff_dist(osm_edge=x.geometry, ref_edge=reference_edge) if x.angle <= angular_threshold else None, axis=1)
 
     # Find matches within thresholds out of all matches for this referehce geometry
-    potential_matches_subset = potential_matches[ (potential_matches.angle < angular_threshold) & (potential_matches.hausdorff_dist < hausdorff_threshold)].copy()
+    potential_matches_subset = potential_matches[ (potential_matches.angle <= angular_threshold) & (potential_matches.hausdorff_dist <= hausdorff_threshold)].copy()
+
 
     if len(potential_matches_subset) == 0:
         
@@ -342,10 +344,16 @@ def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_
     matched_data = reference_data.loc[buffer_matches.index].copy(deep=True)
 
     # Find best match within thresholds of angles and distance
-    matched_data['matches_id'] = matched_data.apply(lambda x: find_best_match(buffer_matches, ref_index=x.name, osm_edges=osm_edges, reference_edge=x['geometry'], angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold), axis=1)
+    matched_data['matches_ix'] = matched_data.apply(lambda x: find_best_match(buffer_matches, ref_index=x.name, osm_edges=osm_edges, reference_edge=x['geometry'], angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold), axis=1)
 
     # Drop rows where no match was found
     matched_data.dropna(inplace = True)
+
+    matched_data['matches_ix'] = matched_data['matches_ix'].astype(int)
+    
+    ixs = matched_data['matches_ix'].values
+    ids = osm_edges['osmid'].loc[ixs].values
+    matched_data['matches_id'] = ids
 
     print(f'{len(matched_data)} reference segments were matched to OSM edges')
 
@@ -405,7 +413,6 @@ def update_osm_grid(osm_segments, osm_data, final_matches, attr):
 
 ##############################
 
-# TODO: Make more efficient!
 def summarize_matches(osm_segments, final_matches, attr):
 
     '''
@@ -434,13 +441,13 @@ def summarize_matches(osm_segments, final_matches, attr):
 
         matched_values = feature[attr].unique()
         if len(matched_values) == 1:
-            matched_attributes[i] = matched_values[0]
+            matched_attributes[str(i)] = matched_values[0]
 
         else:
             feature['length'] = feature.geometry.length
             summed = feature.groupby(attr).agg({'length': 'sum'})
             majority_value = summed['length'].idxmax()
-            matched_attributes[i] = majority_value
+            matched_attributes[str(i)] = majority_value
 
     return matched_attributes  
 
