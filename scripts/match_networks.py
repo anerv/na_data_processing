@@ -95,28 +95,37 @@ print(f'Number of rows in osm_edge table: {len(osm_edges)}')
 print(f'Number of rows in reference_data table: {len(reference_data)}')
 
 #%%
-if os.path.exists('../data/ref_segments_full.gpkg'):
-    ref_segments = gpd.read_file('../data/ref_segments_full.gpkg')
-    ref_segments.dropna(subset=['geometry'],inplace=True)
+# Read/create segment data
+ref_seg_fp = '../data/ref_segments_full.pickle'
+if os.path.exists(ref_seg_fp):
+    with open(ref_seg_fp, 'rb') as fp:
+        ref_segments = pickle.load(fp)
+        #ref_segments.dropna(subset=['geometry'],inplace=True)
 
 else:
     # Create segments
     ref_segments = mf.create_segment_gdf(reference_data, segment_length=10)
     ref_segments.set_crs(crs, inplace=True)
     ref_segments.dropna(subset=['geometry'],inplace=True)
-    ref_segments.to_file('../data/ref_segments_full.gpkg', driver='GPKG')
 
-if os.path.exists('../data/osm_segments_full.gpkg'):
-    osm_segments = gpd.read_file('../data/osm_segments_full.gpkg')
-    osm_segments.dropna(subset=['geometry'],inplace=True)
+    with open(ref_seg_fp, 'wb') as handle:
+        pickle.dump(ref_segments, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+osm_seg_fp = '../data/osm_segments_full.pickle'
+if os.path.exists(osm_seg_fp):
+    with open(osm_seg_fp, 'rb') as fp:
+        osm_segments = pickle.load(fp)
+        osm_segments.dropna(subset=['geometry'],inplace=True)
 
 else:
     osm_segments = mf.create_segment_gdf(osm_edges, segment_length=10)
     osm_segments.rename(columns={'osmid':'org_osmid'}, inplace=True)
     osm_segments.rename(columns={'seg_id':'osmid'}, inplace=True) # Because function assumes an id column names osmid
     osm_segments.set_crs(crs, inplace=True)
-    osm_segments.dropna(subset=['geometry'],inplace=True)
-    osm_segments[['highway','osmid','org_osmid','geometry']].to_file('../data/osm_segments_full.gpkg', driver='GPKG')
+    #osm_segments.dropna(subset=['geometry'],inplace=True)
+
+    with open(osm_seg_fp, 'wb') as handle:
+        pickle.dump(osm_segments, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 #%%
 # Create grid and buffered grid
@@ -134,6 +143,12 @@ osm_grid = gpd.overlay(osm_segments, grid, how='intersection', keep_geom_type=Fa
 ref_grid_buffered = gpd.overlay(ref_segments, buffered_grid, how='intersection', keep_geom_type=False)
 osm_grid_buffered = gpd.overlay(osm_segments, buffered_grid, how='intersection', keep_geom_type=False)
 
+# TODO: Fix multilines and drop points
+ref_grid = ref_grid.loc[ref_grid.geometry.geom_type == 'LineString']
+osm_grid = osm_grid.loc[osm_grid.geometry.geom_type == 'LineString']
+
+ref_grid_buffered = ref_grid_buffered.loc[ref_grid_buffered.geometry.geom_type == 'LineString']
+osm_grid_buffered = osm_grid_buffered.loc[osm_grid_buffered.geometry.geom_type == 'LineString']
 #%%
 %%time
 ref_id_col = 'seg_id'
@@ -143,19 +158,17 @@ results = [mf.analyse_grid_cell(grid_id, ref_grid, osm_grid, ref_grid_buffered, 
 
 all_results = dict(ChainMap(*results))
 #%%
-attr_df = pd.DataFrame.from_dict(all_results, orient='index')
-attr_df.reset_index(inplace=True)
-attr_df.rename(columns={'index':'org_osmid',0:'vejklasse'}, inplace=True)
-
-attr_df['org_osmid'] = attr_df['org_osmid'].astype(int)
-
-updated_osm = osm_edges.merge(attr_df, left_on='osmid', right_on='org_osmid', how='left')
+osm_updated = mf.update_osm_grid(osm_data=osm_edges, ids_attr_dict=all_results, attr='vejklasse')
+osm_updated.plot()
+#%%
+osm_updated[['geometry','osmid','highway','vejklasse']].to_file('../data/entire_matched_area.gpkg',driver='GPKG')
+#%%
+with open('../data/entire_matched_area.pickle', 'wb') as handle:
+        pickle.dump(osm_updated, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 #%%
-df = pd.DataFrame.from_dict(all_results, orient='index')
-df.reset_index(inplace=True)
-df.rename(columns={'index':'osmid',0:'vejklasse'}, inplace=True)
-#%%
+################################ SMALL TEST ################################
+
 # Get smaller subsets for testing
 bounds = ref_segments.total_bounds
 
@@ -169,12 +182,17 @@ ref_segments = ref_segments.cx[xmin:xmax, ymin:ymax].copy(deep=True)
 
 #%%
 buffer_matches = mf.overlay_buffer(reference_data=ref_segments, osm_data=osm_segments, ref_id_col='seg_id', dist=15)
+
 #%%
+
 final_matches = mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, angular_threshold=30, hausdorff_threshold=17)
 
-#osm_updated = mf.update_osm(osm_segments=osm_segments, osm_data=osm_edges, final_matches=final_matches, attr='vejklasse')
-
 #%%
+osm_updated = mf.update_osm(osm_segments=osm_segments, osm_data=osm_edges, final_matches=final_matches, attr='vejklasse')
+
+osm_updated.plot()
+#%%
+
 
 '''
 # Export matches
@@ -230,10 +248,8 @@ else:
     with open('../data/osm_updated.pickle', 'wb') as handle:
         pickle.dump(osm_updated, handle, protocol=pickle.HIGHEST_PROTOCOL)
 #%%
-%load_ext line_profiler
+#%load_ext line_profiler
 
-stats_lprun = %lprun -r -f mf.find_best_match mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, angular_threshold=30, hausdorff_threshold=17)
+#stats_lprun = %lprun -r -f mf.find_best_match mf.find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, angular_threshold=30, hausdorff_threshold=17)
 
-stats_lprun.print_stats()
-
-#%%
+#stats_lprun.print_stats()

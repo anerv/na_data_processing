@@ -10,8 +10,6 @@ import osmnx as ox
 import networkx as nx
 import math
 
-from sqlalchemy import over
-
 #%%
 
 ##############################
@@ -162,13 +160,15 @@ def get_segments(linestring, seg_length):
         end += seg_length
     
     # If the last segment is too short, merge it with the one before
-    for i, l in enumerate(lines):
-        if l.length < seg_length/3:
-            new_l = linemerge((lines[i-1], l))
+    # Check that more than one line exist (to avoid cases where the line is too short to create multiple segments)
+    if len(lines) > 1:
+        for i, l in enumerate(lines):
+            if l.length < seg_length/3:
+                new_l = linemerge((lines[i-1], l))
 
-            lines[i-1] = new_l
+                lines[i-1] = new_l
 
-            del lines[i]
+                del lines[i]
 
     lines = MultiLineString(lines)
     
@@ -185,7 +185,6 @@ def merge_multiline(line_geom):
         line_geom = linemerge(line_geom)
 
     return line_geom
-
 
 ##############################
 
@@ -207,6 +206,8 @@ def create_segment_gdf(gdf, segment_length):
 
     gdf['geometry'] = gdf['geometry'].apply(lambda x: get_segments(x, segment_length))
     segments_gdf = gdf.explode(index_parts=False, ignore_index=True)
+
+    segments_gdf.dropna(subset=['geometry'],inplace=True)
 
     ids = []
     for i in range(1000, 1000+len(segments_gdf)):
@@ -326,7 +327,7 @@ def find_best_match(buffer_matches, ref_index, osm_edges, reference_edge, angula
 
 ##############################
 
-def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_threshold=30, hausdorff_threshold=12):
+def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_threshold=20, hausdorff_threshold=12):
     '''
     Finds the best/correct matches in two datasets with linestrings, from an initial matching based on a buffered intersection.
 
@@ -348,7 +349,7 @@ def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_
     matched_data['matches_ix'] = matched_data.apply(lambda x: find_best_match(buffer_matches, ref_index=x.name, osm_edges=osm_edges, reference_edge=x['geometry'], angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold), axis=1)
 
     # Drop rows where no match was found
-    matched_data.dropna(inplace = True)
+    matched_data.dropna(subset=['matches_ix'], inplace = True)
 
     matched_data['matches_ix'] = matched_data['matches_ix'].astype(int)
     
@@ -366,6 +367,8 @@ def find_matches_from_buffer(buffer_matches, osm_edges, reference_data, angular_
 
 def update_osm(osm_segments, osm_data, final_matches, attr):
 
+    # TODO: Make more efficient!
+
     '''
     Update osm_dataset based on the attributes of the reference segments each OSM feature's segments have been matched to.
 
@@ -382,39 +385,34 @@ def update_osm(osm_segments, osm_data, final_matches, attr):
     attr_df = pd.DataFrame.from_dict(ids_attr_dict, orient='index')
     attr_df.reset_index(inplace=True)
     attr_df.rename(columns={'index':'org_osmid',0:attr}, inplace=True)
+    attr_df['org_osmid'] = attr_df['org_osmid'].astype(int)
 
-    updated_osm = osm_data.merge(attr_df, left_on='osmid', right_on='org_osmid', how='left')
+    updated_osm = osm_data.merge(attr_df, left_on='osmid', right_on='org_osmid', how='inner')
 
     return updated_osm
 
+
 ##############################
 
-def update_osm_grid(osm_segments, osm_data, final_matches, attr):
+def update_osm_grid(osm_data, ids_attr_dict, attr):
 
-    '''
-    Update osm_dataset based on the attributes of the reference segments each OSM feature's segments have been matched to.
+    # TODO: Make more efficient!
 
-    Arguments:
-        osm_segments (geodataframe): the osm_segments used in the matching process
-        osm_data (geodataframe): original osm data to be updated
-        final_matches (geodataframe): the result of the matching process
-        attr (str): name of column in final_matches data with attribute to be transfered to osm data
-
-    '''
-
-    ids_attr_dict = summarize_matches(osm_segments, final_matches, attr)
-
+    
     attr_df = pd.DataFrame.from_dict(ids_attr_dict, orient='index')
     attr_df.reset_index(inplace=True)
     attr_df.rename(columns={'index':'org_osmid',0:attr}, inplace=True)
+    attr_df['org_osmid'] = attr_df['org_osmid'].astype(int)
 
-    updated_osm = osm_data.merge(attr_df, left_on='osmid', right_on='org_osmid', how='left')
+    updated_osm = osm_data.merge(attr_df, left_on='osmid', right_on='org_osmid', how='inner')
 
     return updated_osm
 
 ##############################
 
 def summarize_matches(osm_segments, final_matches, attr):
+
+    # TODO: Make more efficient!
 
     '''
     Creates a dictionary with the original feature ids and the attribute they have been matched to
@@ -423,17 +421,17 @@ def summarize_matches(osm_segments, final_matches, attr):
         osm_segments (geodataframe): osm_segments used in the analysis
         final_matches: reference_data with information about corresponding osm segments
         attr (str): name of column in final_matches data with attribute to be transfered to osm data
-
+    Returns:
+        a dictionary with the original osmid as keys and the matched value as values
     '''
 
-    # TODO: Prevent conversion to float of indices and ids?
     #Create dataframe with new and old ids and information on matches
     final_matches['osmid'] = final_matches['matches_id']
     osm_merged = osm_segments.merge(final_matches.drop('geometry',axis=1), how='left', on='osmid')
-    
+
     org_ids = list(osm_merged['org_osmid'].unique())
 
-    matched_attributes = {}
+    matched_attributes_dict = {}
 
     for i in org_ids:
         
@@ -442,15 +440,44 @@ def summarize_matches(osm_segments, final_matches, attr):
 
         matched_values = feature[attr].unique()
         if len(matched_values) == 1:
-            matched_attributes[str(i)] = matched_values[0]
+            matched_attributes_dict[str(i)] = matched_values[0]
 
         else:
             feature['length'] = feature.geometry.length
             summed = feature.groupby(attr).agg({'length': 'sum'})
-            majority_value = summed['length'].idxmax()
-            matched_attributes[str(i)] = majority_value
 
-    return matched_attributes  
+            majority_value = summed['length'].idxmax()
+            
+            majority_value_len = summed.loc[majority_value].values[0]
+
+            if majority_value_len < summed.length.sum() / 100 * 50:
+                majority_value = 'undecided'
+
+            else:
+                majority_value = majority_value
+            
+            matched_attributes_dict[str(i)] = majority_value
+        
+    matched_attributes_dict = {key:val for key, val in matched_attributes_dict.items() if val != 'none'}
+
+    return matched_attributes_dict 
+
+
+##############################
+
+def sum_matches(i, osm_merged, matched_attributes_dict, attr):
+
+    feature = osm_merged.loc[osm_merged.org_osmid == i].copy()
+
+    matched_values = feature[attr].unique()
+    if len(matched_values) == 1:
+        matched_attributes_dict[str(i)] = matched_values[0]
+
+    else:
+        feature['length'] = feature.geometry.length
+        summed = feature.groupby(attr).agg({'length': 'sum'})
+        majority_value = summed['length'].idxmax()
+        matched_attributes_dict[str(i)] = majority_value
 
 ##############################
 
@@ -562,7 +589,6 @@ def create_osmnx_graph(gdf):
     # For ox simplification to work, edge geometries must be dropped. Edge geometries is defined by their start and end node
     #edges.drop(['geometry'], axis=1, inplace=True) # Not required by new simplification function
 
-
     G_ox = ox.graph_from_gdfs(nodes, edges)
 
    
@@ -641,14 +667,9 @@ def create_grid_geometry(gdf, cell_size):
 
 ##############################
 
-def analyse_grid_cell(grid_id, ref_grid, osm_grid, ref_grid_buffered, osm_grid_buffered, ref_id_col, angular_threshold=30, hausdorff_threshold=17):
+def analyse_grid_cell(grid_id, ref_grid, osm_grid, ref_grid_buffered, osm_grid_buffered, ref_id_col, angular_threshold=20, hausdorff_threshold=17):
     
     print(grid_id)
-
-    #try: # Check if dictionary already exists
-     #   results
-    #except NameError:
-     #   results = {}
 
     r_seg = ref_grid.loc[ref_grid.grid_id == grid_id]
     o_seg = osm_grid.loc[osm_grid.grid_id == grid_id]
@@ -661,26 +682,21 @@ def analyse_grid_cell(grid_id, ref_grid, osm_grid, ref_grid_buffered, osm_grid_b
 
     if len(r_seg) == 0 or len(o_seg) == 0:
 
-        #print('No data in this cell')
-        pass
+        ids_attr_dict = {}
 
     else:
         buffer_matches = overlay_buffer(reference_data=r_seg_b, osm_data=o_seg_b, ref_id_col=ref_id_col, dist=15)
-        #print('Buffer matches found!')
 
         if len(buffer_matches) > 0:
             final_matches = find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=o_seg_b, reference_data=r_seg_b, angular_threshold=angular_threshold, hausdorff_threshold=hausdorff_threshold)
-            #print('Final matches found!')
 
             # Only keep results from those in regular grid
             final_matches = final_matches.loc[final_matches[ref_id_col].isin(ref_id_list)]
 
             ids_attr_dict = summarize_matches(o_seg, final_matches, 'vejklasse')
 
-            # Not interested in none values
-            ids_attr_dict = {key:val for key, val in ids_attr_dict.items() if val != 'none'}
-
-            #results = dict(results, **ids_attr_dict)
+        else:
+            ids_attr_dict = {}
 
     return ids_attr_dict
 #%%
@@ -793,10 +809,12 @@ if __name__ == '__main__':
     assert types[0] == 'LineString'
     assert len(types) == 1
 
-    for _, row in test_segments.iterrows():
-
-        assert row.geometry.length <= seg_length * 1.3
-        assert row.geometry.length >= seg_length / 3
+    grouped = test_segments.groupby('fot_id')
+    for n, g in grouped:
+        if len(g) > 1:
+            for _, row in g.iterrows():
+                assert round(row.geometry.length,1) <= seg_length * 1.35 # A bit higher test value due to Shapely imprecision issues
+                assert round(row.geometry.length,1) >= seg_length / 3
 
 
     # Test find best match function
@@ -819,6 +837,7 @@ if __name__ == '__main__':
 
     matched_data['match'] = matched_data.apply(lambda x: find_best_match(buffer_matches, ref_index=x.name, osm_edges=osm_segments, reference_edge=x['geometry'], angular_threshold=20, hausdorff_threshold=12), axis=1)
 
+    # Key is ref segments index, value is osm segment index
     test_values = {
         13: 114,
         14: 115,
@@ -833,4 +852,36 @@ if __name__ == '__main__':
         test_match = matched_data.loc[key, 'match']
         
         assert test_match == value, 'Unexpected match!'
+
+
+    # Test find best match from buffer function
+    ref_segments = gpd.read_file('../tests/ref_subset_segments.gpkg')
+    osm_segments = gpd.read_file('../tests/osm_subset_segments.gpkg')
+
+    osm_segments['org_osmid'] = osm_segments.osmid
+    osm_segments.osmid = osm_segments.seg_id
+    osm_segments.drop('seg_id', axis=1, inplace=True)
+
+    osm_segments.set_crs('EPSG:25832', inplace=True)
+    ref_segments.set_crs('EPSG:25832', inplace=True)
+
+    buffer_matches = overlay_buffer(osm_data=osm_segments, reference_data=ref_segments, ref_id_col='seg_id', dist=10)
+    final_matches = find_matches_from_buffer(buffer_matches=buffer_matches, osm_edges=osm_segments, reference_data=ref_segments, angular_threshold=20, hausdorff_threshold=15)
+
+    # Key is ref segment id, value is osm segment id
+    test_values = {
+        1013: 1114,
+        1014: 1115,
+        1015: 1072,
+        1044: 1133,
+        1012: 1113,
+        1022: 1113,
+        1023: 1112}
+
+    for key, value in test_values.items():
+
+        test_match = final_matches.loc[final_matches.seg_id == key]['matches_id'].values[0]
+
+        assert test_match == value, 'Unexpected match!'
+
 
