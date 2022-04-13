@@ -143,29 +143,25 @@ osm_grid = gpd.overlay(osm_segments, grid, how='intersection', keep_geom_type=Fa
 ref_grid_buffered = gpd.overlay(ref_segments, buffered_grid, how='intersection', keep_geom_type=False)
 osm_grid_buffered = gpd.overlay(osm_segments, buffered_grid, how='intersection', keep_geom_type=False)
 
-# TODO: Fix multilines and drop points
+# Drop rows where geometries are points or multilinestring due to clipping
 ref_grid = ref_grid.loc[ref_grid.geometry.geom_type == 'LineString']
 osm_grid = osm_grid.loc[osm_grid.geometry.geom_type == 'LineString']
-
 ref_grid_buffered = ref_grid_buffered.loc[ref_grid_buffered.geometry.geom_type == 'LineString']
 osm_grid_buffered = osm_grid_buffered.loc[osm_grid_buffered.geometry.geom_type == 'LineString']
 #%%
-%%time
+################################ GRID ANALYSIS ################################
 ref_id_col = 'seg_id'
 grid_ids = list(ref_grid.grid_id.unique())
 
 results = [mf.analyse_grid_cell(grid_id, ref_grid, osm_grid, ref_grid_buffered, osm_grid_buffered, ref_id_col) for grid_id in grid_ids]
 
 all_results = dict(ChainMap(*results))
-#%%
+
 osm_updated = mf.update_osm_grid(osm_data=osm_edges, ids_attr_dict=all_results, attr='vejklasse')
 osm_updated.plot()
-#%%
-osm_updated[['geometry','osmid','highway','vejklasse']].to_file('../data/entire_matched_area.gpkg',driver='GPKG')
-#%%
-with open('../data/entire_matched_area.pickle', 'wb') as handle:
-        pickle.dump(osm_updated, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+with open('../data/entire_matched_area.pickle', 'wb') as handle:
+    pickle.dump(osm_updated, handle, protocol=pickle.HIGHEST_PROTOCOL)
 #%%
 ################################ SMALL TEST ################################
 
