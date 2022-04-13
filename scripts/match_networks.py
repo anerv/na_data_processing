@@ -76,7 +76,7 @@ else:
     with open('../data/osm_nodes_sim.pickle', 'rb') as fp:
         osm_nodes = pickle.load(fp)
 
-    
+    # TODO: Include paths??
     highway_values = ['residential', 'service', 'primary', 'tertiary',
             'tertiary_link', 'secondary', 'cycleway', 'path', 'living_street',
             'unclassified', 'primary_link', 'motorway_link', 'motorway', 'track',
