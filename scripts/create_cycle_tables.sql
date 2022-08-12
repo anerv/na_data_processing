@@ -1,6 +1,6 @@
-DROP TABLE IF EXISTS geodk_bike;
-CREATE TABLE geodk_bike AS
-    SELECT * FROM vm_brudt WHERE vejklasse IN ('Cykelbane langs vej', 'Cykelsti langs vej')
+DROP TABLE IF EXISTS geodk_bike_simple;
+CREATE TABLE geodk_bike_simple AS
+    SELECT * FROM vm_brudt_simple WHERE vejklasse IN ('Cykelbane langs vej', 'Cykelsti langs vej')
 ;
 
 

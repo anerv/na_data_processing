@@ -27,7 +27,7 @@ with open(r'config.yml') as file:
     db_host = parsed_yaml_file['db_host']
     db_port = parsed_yaml_file['db_port']
   
-    
+
 print('Settings loaded!')
 #%%
 geodk = gpd.read_file(geodk_fp)
@@ -78,13 +78,19 @@ if use_postgres:
     engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
     dbf.to_postgis(geodataframe=geodk, table_name='vm_brudt', engine=engine)
-
+    dbf.to_postgis(geodataframe=edges, table_name='vm_brudt_simple', engine=engine)
+    dbf.to_postgis(geodataframe=nodes, table_name='vm_brudt_nodes_simple', engine=engine)
 
     q = 'SELECT fot_id, feat_type FROM vm_brudt LIMIT 10;'
+    q2 = 'SELECT fot_id, feat_type FROM vm_brudt_simple LIMIT 10;'
 
     test = dbf.run_query_pg(q, connection)
 
     print(test)
+
+    test2 = dbf.run_query_pg(q2, connection)
+
+    print(test2)
 
     connection.close()
 

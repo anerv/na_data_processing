@@ -1,0 +1,99 @@
+def update_osm(osm_segments, osm_data, final_matches, attr, unique_osm_edge_id):
+
+    '''
+    Update osm_dataset based on the attributes of the reference segments each OSM feature's segments have been matched to.
+
+    Arguments:
+        osm_segments (geodataframe): the osm_segments used in the matching process
+        osm_data (geodataframe): original osm data to be updated
+        final_matches (geodataframe): the result of the matching process
+        attr (str): name of column in final_matches data with attribute to be transfered to osm data
+
+    '''
+
+    ids_attr_dict = summarize_attribute_matches(osm_segments, final_matches, attr)
+
+    attr_df = pd.DataFrame.from_dict(ids_attr_dict, orient='index')
+    attr_df.reset_index(inplace=True)
+    attr_df.rename(columns={'index':'osmid',0:attr}, inplace=True)
+    attr_df['osmid'] = attr_df['osmid'].astype(int)
+
+    updated_osm = osm_data.merge(attr_df, left_on=unique_osm_edge_id, right_on='osmid', how='inner', suffixes=('','_matched'))
+
+    return updated_osm
+
+
+##############################
+
+def summarize_attribute_matches(osm_segments, segment_matches, attr, ):
+
+    '''
+    Creates a dictionary with the original feature ids and the attribute they have been matched to
+
+    Arguments:
+        osm_segments (geodataframe): osm_segments used in the analysis
+        final_matches: reference_data with information about corresponding osm segments
+        attr (str): name of column in final_matches data with attribute to be transfered to osm data
+
+    Returns:
+        a dictionary with the original osmid as keys and the matched value as values
+    '''
+
+    #Create dataframe with new and old ids and information on matches
+
+    osm_merged = osm_segments.merge(segment_matches[['seg_id',attr]],how ='left', on='seg_id', suffixes=('','_matched'))
+
+    if attr in osm_segments.columns:
+        attr = attr + '_matched'
+
+    org_ids = list( osm_merged['osmid'].unique() )
+
+    matched_attributes_dict = {}
+
+    for i in org_ids:
+        
+        feature = osm_merged.loc[osm_merged.osmid == i].copy(deep=True)
+        feature[attr] = feature[attr].fillna('none')
+
+        matched_values = feature[attr].unique()
+        if len(matched_values) == 1:
+            matched_attributes_dict[str(i)] = matched_values[0]
+
+        else:
+            feature['length'] = feature.geometry.length
+            summed = feature.groupby(attr).agg({'length': 'sum'})
+
+            majority_value = summed['length'].idxmax()
+            
+            majority_value_len = summed.loc[majority_value].values[0]
+
+            if majority_value_len < summed.length.sum() / 100 * 50:
+                majority_value = 'undecided'
+
+            else:
+                majority_value = majority_value
+            
+            matched_attributes_dict[str(i)] = majority_value
+        
+    matched_attributes_dict = {key:val for key, val in matched_attributes_dict.items() if val != 'none'}
+
+    return matched_attributes_dict 
+
+
+##############################
+
+def sum_matches(i, osm_merged, matched_attributes_dict, attr):
+
+    # TODO: Docs!
+
+    feature = osm_merged.loc[osm_merged.osmid == i].copy()
+
+    matched_values = feature[attr].unique()
+    if len(matched_values) == 1:
+        matched_attributes_dict[str(i)] = matched_values[0]
+
+    else:
+        feature['length'] = feature.geometry.length
+        summed = feature.groupby(attr).agg({'length': 'sum'})
+        majority_value = summed['length'].idxmax()
+        matched_attributes_dict[str(i)] = majority_value
