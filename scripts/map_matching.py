@@ -10,6 +10,7 @@ from shapely.geometry.linestring import LineString
 import polyline
 import matplotlib.pyplot as plt
 import json
+from tqdm import tqdm
 
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
@@ -34,13 +35,13 @@ print('Settings loaded!')
 #%%
 connection = dbf.connect_pg(db_name, db_user, db_password)
 
-get_geodk = 'SELECT * FROM geodk_bike_simple;'
+get_geodk = "SELECT * FROM vm_brudt WHERE vejklasse IN ('Cykelbane langs vej', 'Cykelsti langs vej');"
 
-get_osm = 'SELECT * FROM ox_edges;'
+#get_osm = 'SELECT * FROM ox_edges;'
 
 reference_data = gpd.GeoDataFrame.from_postgis(get_geodk, connection, geom_col='geometry' )
 
-osm_data = gpd.GeoDataFrame.from_postgis(get_osm, connection, geom_col='geometry' )
+#osm_data = gpd.GeoDataFrame.from_postgis(get_osm, connection, geom_col='geometry' )
 
 assert len(reference_data) == len(reference_data[ref_id_col].unique())
 
@@ -51,7 +52,12 @@ matches = {}
 segments = gf.create_segment_gdf(reference_data, 10)
 
 #%%
-for ref_id in reference_data[ref_id_col].to_list():
+#ref_id_list = [1079141483]
+#ref_id_list = [1079141217]
+#ref_id_list = [1101460107]
+ref_id_list = [1090389803]
+for ref_id in ref_id_list: 
+    #tqdm(reference_data[ref_id_col].to_list()):
 
     points = segments.loc[segments.fot_id==ref_id].copy()
     points['geometry'] = points.geometry.boundary
@@ -65,7 +71,7 @@ for ref_id in reference_data[ref_id_col].to_list():
     # VALHALLA request
     meili_coordinates = points.to_json(orient='records')
     meili_head = '{"shape":'
-    meili_tail = ""","search_radius": 15, "max_search_radius": 30, "shape_match":"map_snap", "sigma_ z":"2", "turn_penalty_factor":"10",  "mode":"multimodal", "format":"osrm"}""" # "costing":"auto",
+    meili_tail = ""","search_radius": 15, "max_search_radius": 30, "shape_match":"map_snap", "sigma_ z":"2", "turn_penalty_factor":"10", "costing":"auto","format":"osrm"}"""
     meili_request_body = meili_head + meili_coordinates + meili_tail
     url = "http://localhost:8002/trace_attributes"
     headers = {'Content-type': 'application/json'}
@@ -76,6 +82,7 @@ for ref_id in reference_data[ref_id_col].to_list():
         response_text = json.loads(r.text)
     else:
         print(r)
+        break
 
     # Get points representing nodes in matched OSM edges
     matched_df = pd.DataFrame()
@@ -140,7 +147,7 @@ matched_geodk.plot(ax=ax, color='red')
 matched_osm.plot(ax=ax,color='blue')
 #%%
 # Save data on matches
-with open('matches.json', 'w') as fp:
+with open('../data/matches.json', 'w') as fp:
     json.dump(matches, fp)
 
 if use_postgres:
