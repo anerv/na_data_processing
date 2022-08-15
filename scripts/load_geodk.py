@@ -1,16 +1,15 @@
 '''
 Script for loading GeoDK data (shapefile, geopackage etc.) to PostGIS db
-Required an exisinting db with postgis extension
+Required an existing db with postgis extension
 '''
-
 #%%
 import geopandas as gpd
 import yaml
 from src import db_functions as dbf
 import pickle
-from src import matching_functions as mf
-import osmnx as ox
-from src import simplification_functions as sf
+# from src import matching_functions as mf
+# import osmnx as ox
+# from src import simplification_functions as sf
 # %%
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
@@ -18,6 +17,7 @@ with open(r'config.yml') as file:
     use_postgres = parsed_yaml_file['use_postgres']
 
     geodk_fp = parsed_yaml_file['geodk_fp']
+    geodk_id_col = parsed_yaml_file['geodk_id_col']
 
     crs = parsed_yaml_file['CRS']
 
@@ -27,7 +27,6 @@ with open(r'config.yml') as file:
     db_host = parsed_yaml_file['db_host']
     db_port = parsed_yaml_file['db_port']
   
-
 print('Settings loaded!')
 #%%
 geodk = gpd.read_file(geodk_fp)
@@ -44,31 +43,34 @@ geodk = geodk[useful_cols]
 geodk = geodk.to_crs(crs)
 
 assert geodk.crs == crs
+
+assert len(geodk) == len(geodk[geodk_id_col].unique())
+
 #%%
 # Create graph structure
-graph_ref = mf.create_osmnx_graph(geodk)
+#graph_ref = mf.create_osmnx_graph(geodk)
 
 #%%
-G_sim = sf.momepy_simplify_graph(graph_ref, attributes=['vejklasse'])
+# G_sim = sf.momepy_simplify_graph(graph_ref, attributes=['vejklasse'])
 
-#%%
-# Check crs
-nodes, edges = ox.graph_to_gdfs(G_sim)
-assert edges.crs == crs, 'Data is in wrong crs!'
+# #%%
+# # Check crs
+# nodes, edges = ox.graph_to_gdfs(G_sim)
+# assert edges.crs == crs, 'Data is in wrong crs!'
 
-#%%
-# Create unique id
-edges['old_id'] = edges.fot_id
+# #%%
+# # Create unique id
+# edges['old_id'] = edges.fot_id
 
-edges.reset_index(inplace=True)
+# edges.reset_index(inplace=True)
 
-ids = []
-for i in range(1000, 1000+len(edges)):
-    ids.append(i)
+# ids = []
+# for i in range(1000, 1000+len(edges)):
+#     ids.append(i)
 
-edges['new_id'] = ids
+# edges['new_id'] = ids
 
-assert len(edges.new_id.unique()) == len(edges)
+# assert len(edges.new_id.unique()) == len(edges)
 
 #%%
 if use_postgres:
@@ -78,19 +80,19 @@ if use_postgres:
     engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
     dbf.to_postgis(geodataframe=geodk, table_name='vm_brudt', engine=engine)
-    dbf.to_postgis(geodataframe=edges, table_name='vm_brudt_simple', engine=engine)
-    dbf.to_postgis(geodataframe=nodes, table_name='vm_brudt_nodes_simple', engine=engine)
+    # dbf.to_postgis(geodataframe=edges, table_name='vm_brudt_simple', engine=engine)
+    # dbf.to_postgis(geodataframe=nodes, table_name='vm_brudt_nodes_simple', engine=engine)
 
     q = 'SELECT fot_id, feat_type FROM vm_brudt LIMIT 10;'
-    q2 = 'SELECT fot_id, feat_type FROM vm_brudt_simple LIMIT 10;'
+    #q2 = 'SELECT fot_id, feat_type FROM vm_brudt_simple LIMIT 10;'
 
     test = dbf.run_query_pg(q, connection)
 
     print(test)
 
-    test2 = dbf.run_query_pg(q2, connection)
+    # test2 = dbf.run_query_pg(q2, connection)
 
-    print(test2)
+    # print(test2)
 
     connection.close()
 
