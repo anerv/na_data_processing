@@ -3,109 +3,7 @@ import numpy as np
 import pandas as pd
 from shapely.ops import linemerge, substring
 from shapely.geometry import MultiLineString
-import math
-
-def _get_segments(linestring, seg_length):
-
-    '''
-    Convert a Shapely LineString into segments of a speficied length.
-    If a line segment ends up being shorter than the specified distance, it is merged with the segment before it.
-
-    Arguments:
-        linestring (Shapely LineString): Line to be cut into segments
-        seg_length (numerical): The length of the segments
-
-    Returns:
-        lines (Shapely MultiLineString): A multilinestring consisting of the line segments.
-    '''
-
-    org_length = linestring.length
-
-    no_segments = math.ceil(org_length / seg_length)
-
-    start = 0
-    end = seg_length
-    lines = []
-
-    for _ in range(no_segments):
-
-        assert start != end
-
-        l = substring(linestring, start, end)
-      
-        lines.append(l)
-
-        start += seg_length
-        end += seg_length
-    
-    # If the last segment is too short, merge it with the one before
-    # Check that more than one line exist (to avoid cases where the line is too short to create multiple segments)
-    if len(lines) > 1:
-        for i, l in enumerate(lines):
-            if l.length < seg_length/3:
-                new_l = linemerge((lines[i-1], l))
-
-                lines[i-1] = new_l
-
-                del lines[i]
-
-    lines = MultiLineString(lines)
-    
-    return lines
-
-
-def _merge_multiline(line_geom):
-
-    '''
-    Convert a Shapely MultiLinestring into a Linestring
-    
-    Arguments:
-        line_geom (Shapely LineString or MultiLineString): geometry to be merged
-       
-    Returns:
-        line_geom (Shapely LineString): original geometry as LineString
-    '''
-
-    if line_geom.geom_type == 'MultiLineString':
-        line_geom = linemerge(line_geom)
-    
-    assert line_geom.geom_type == 'LineString'
-
-    return line_geom
-
-
-
-def create_segment_gdf(gdf, segment_length):
-
-    '''
-    Takes a geodataframe with linestrings and converts it into shorter segments.
-
-    Arguments:
-        gdf (geodataframe): Geodataframe with linestrings to be converted to shorter segments
-        segment_length (numerical): The length of the segments
-
-    Returns:
-        segments_gdf (geodataframe): New geodataframe with segments and new unique ids (seg_id)
-    '''
-
-    gdf['geometry'] = gdf['geometry'].apply(lambda x: _merge_multiline(x))
-    assert gdf.geometry.geom_type.unique()[0] == 'LineString'
-
-    gdf['geometry'] = gdf['geometry'].apply(lambda x: _get_segments(x, segment_length))
-    segments_gdf = gdf.explode(index_parts=False, ignore_index=True)
-
-    segments_gdf.dropna(subset=['geometry'],inplace=True)
-
-    ids = []
-    for i in range(1000, 1000+len(segments_gdf)):
-        ids.append(i)
-
-    segments_gdf['seg_id'] = ids
-    assert len(segments_gdf['seg_id'].unique()) == len(segments_gdf)
-
-
-    return segments_gdf
-
+import momepy 
 
 def clean_col_names(df):
 
@@ -130,5 +28,122 @@ def clean_col_names(df):
     df.columns = new_cols
 
     return df
+
+def create_osmnx_graph(gdf):
+
+    '''
+    Function for  converting a geodataframe with LineStrings to a NetworkX graph object (MultiDiGraph), which follows the data structure required by OSMnx.
+    (I.e. Nodes indexed by osmid, nodes contain columns with x and y coordinates, edges is multiindexed by u, v, key).
+    Converts MultiLineStrings to LineStrings - assumes that there are no gaps between the lines in the MultiLineString
+
+    OBS! Current version does not fix issues with topology.
+
+    Arguments:
+        gdf (gdf): The data to be converted to a graph format
+        directed (bool): Whether the resulting graph should be directed or not. Directionality is based on the order of the coordinates.
+
+    Returns:
+        G_ox (NetworkX MultiDiGraph object): The original data in a NetworkX graph format
+    '''
+
+    gdf['geometry'] = gdf['geometry'].apply( lambda x: linemerge(x) if x.geom_type == 'MultiLineString' else x)
+
+    # If Multilines cannot be merged do to gaps, use explode
+    geom_types = gdf.geom_type.to_list()
+    #unique_geom_types = set(geom_types)
+
+    if 'MultiLineString' in geom_types:
+        gdf = gdf.explode(index_parts=False)
+
+    G = momepy.gdf_to_nx(gdf, approach='primal', directed=True)
+
+    nodes, edges = momepy.nx_to_gdf(G)
+
+    # Create columns and index as required by OSMnx
+    index_length = len(str(nodes['nodeID'].iloc[-1].item()))
+    nodes['osmid'] = nodes['nodeID'].apply(lambda x: create_node_index(x, index_length))
+
+    # Create x y coordinate columns
+    nodes['x'] = nodes.geometry.x
+    nodes['y'] = nodes.geometry.y
+
+    edges['u'] = nodes['osmid'].loc[edges.node_start].values
+    edges['v'] = nodes['osmid'].loc[edges.node_end].values
+
+    nodes.set_index('osmid', inplace=True)
+
+    edges['length'] = edges.geometry.length # Length is required by some functions
+
+    edges['key'] = 0
+
+    edges = find_parallel_edges(edges)
+
+    # Create multiindex in u v key format
+    edges = edges.set_index(['u', 'v', 'key'])
+
+    # For ox simplification to work, edge geometries must be dropped. Edge geometries is defined by their start and end node
+    #edges.drop(['geometry'], axis=1, inplace=True) # Not required by new simplification function
+
+    G_ox = ox.graph_from_gdfs(nodes, edges)
+
+   
+    return G_ox
+
+
+def find_parallel_edges(edges):
+
+    '''
+    Check for parallel edges in a pandas DataFrame with edges, including columns u with start node index and v with end node index.
+    If two edges have the same u-v pair, the column 'key' is updated to ensure that the u-v-key combination can uniquely identify an edge.
+    Note that (u,v) is not considered parallel to (v,u)
+
+    Arguments:
+        edges (gdf): network edges
+
+    Returns:
+        edges (gdf): edges with updated key index
+    '''
+
+
+    # Find edges with duplicate node pairs
+    parallel = edges[edges.duplicated(subset=['u','v'])]
+
+    edges.loc[parallel.index, 'key'] = 1 #Set keys to 1
+
+    k = 1
+
+    while len(edges[edges.duplicated(subset=['u','v','key'])]) > 0:
+
+        k += 1
+
+        parallel = edges[edges.duplicated(subset=['u','v','key'])]
+
+        edges.loc[parallel.index, 'key'] = k #Set keys to 1
+
+    assert len(edges[edges.duplicated(subset=['u','v','key'])]) == 0, 'Edges not uniquely indexed by u,v,key!'
+
+    return edges
+
+
+def create_node_index(x, index_length):
+
+    '''
+    Create unique id or index value of specific length based on another shorter column
+
+    Arguments:
+        x (undefined): the value to base the new id on (e.g. the index)
+        index_length (int): the desired length of the id value
+
+    Returns:
+        x (str): the original id padded with zeroes to reach the required length of the index value
+    '''
+
+    x = str(x)
+    x  = x.zfill(index_length)
+    
+    assert len(x) == index_length
+
+    return x
+
 
 # TODO: Copy tests from CDQ folder
