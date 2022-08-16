@@ -63,3 +63,8 @@ data/raw/planet_11.489,55.575_12.465,55.915-shp/CHECKSUM.txt
 data/raw/planet_11.489,55.575_12.465,55.915-shp/logfile.txt
 data/raw/planet_11.489,55.575_12.465,55.915-shp/README.html
 data/osm
+scripts/cache/2f0e087e1685fdf2232e112979ce586e9839c44d.json
+scripts/cache/6689d97937ae036ae46575d0d2e38755fdf1f61f.json
+scripts/cache/f46905c936f123285a2dbb551ef0771a37d2c6ca.json
+scripts/cache/d1f0852f81d31fb8b126a823bae5494fe1b9131a.json
+data/osm_pyrosm_graph
