@@ -18,6 +18,7 @@ import pickle
 from src import simplification_functions as sf
 from src import graph_functions as gf
 from timeit import default_timer as timer
+import os.path
 #%%
 
 with open(r'config.yml') as file:
@@ -47,13 +48,28 @@ extra_attr = ['cycleway:left','cycleway:right','cycleway:both','cycleway:width',
             'cycleway:surface','cyclestreet','sidewalk','crossing','barrier','bollard','flashing_lights','proposed','construction']
 
 #%%
-nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
-#%%
-with open('../data/osm_edges_org', 'wb') as handle:
-    pickle.dump(edges, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# osm_edges_fp = '../data/osm_edges_org.pickle'
+# osm_nodes_fp = '../data/osm_nodes_org.pickle'
 
-with open('../data/osm_nodes_org.pickle', 'wb') as handle:
-    pickle.dump(nodes, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# if os.path.exists(osm_edges_fp) and os.path.exists(osm_nodes_fp):
+#     print('Loading data...')
+
+#     with open(osm_edges_fp, 'rb') as fp:
+#         edges = pickle.load(fp)
+
+#     with open(osm_nodes_fp, 'rb') as fp:
+#         nodes = pickle.load(fp)
+
+# else:
+print('Creating edge and node datasets...')
+nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
+
+    # with open(osm_edges_fp, 'wb') as handle:
+    #     pickle.dump(edges, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    # with open(osm_nodes_fp, 'wb') as handle:
+    #     pickle.dump(nodes, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 
 #%%
 # Filter out edges with irrelevant highway types
@@ -67,8 +83,12 @@ new_len = len(edges)
 
 print(f'{org_len - new_len} edges where removed')
 
+# Filter unused nodes
+node_id_list = list(set(edges.u.to_list() + edges.v.to_list()))
+nodes = nodes.loc[nodes.id.isin(node_id_list)]
+
 #%%
-# # Create subselection of OSM edges in specific area, to test!
+# Create subselection of OSM edges in specific area, to test!
 # xmin = 12.240496
 # ymin = 55.617982
 # xmax = 12.591587
@@ -88,31 +108,20 @@ end = timer()
 print(end - start)
 
 #%%
+# Save graph
+with open('../data/osm_pyrosm_graph', 'wb') as handle:
+    pickle.dump(G, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+#%%
 # Convert to index format used by osmnx
 ox_nodes, ox_edges = ox.graph_to_gdfs(G)
-
-#%%
-G_updated = G.edge_subgraph(ox_edges.index)
-
-#%%
-# # Update edges based on matches with reference data
-# matches_fp = open('../data/matches.json')
-
-# matches = json.load(matches_fp)
-  
-# final_matches_df = pd.DataFrame.from_dict(matches,orient='index')
-# final_matches_df.rename(columns={0:'way_id'},inplace=True)
-# final_matches_df.reset_index(inplace=True)
-# final_matches_df.rename({'index':ref_id_col},inplace=True,axis=1)
-
-# updated_osm = ox_edges.merge(final_matches_df, left_on='osmid',right_on='way_id',how='left')
 
 #%%
 # Add attribute on whether cycling infra exist or not (to be used by e.g. simplification function)
 ox_edges = gf.clean_col_names(ox_edges)
 ox_nodes = gf.clean_col_names(ox_nodes)
 
-ox_edges['cycling_infra'] = 'no'
+ox_edges['cycling_infrastructure'] = 'no'
 
 queries = ["highway == 'cycleway'",
         "highway == 'living_street'",
@@ -123,36 +132,36 @@ queries = ["highway == 'cycleway'",
         "bicycle_road == 'yes'",
         "highway == 'track' & bicycle in ['designated','yes']",
         "highway == 'service' & (bicycle == 'designated' or motor_vehicle == 'no')",
-        "highway == 'path' & bicycle in ['designated','yes']" #,
-        #f"{ref_id_col}.notnull()"
+        "highway == 'path' & bicycle in ['designated','yes']" 
         ]
 
 for q in queries:
     ox_filtered = ox_edges.query(q)
 
-    ox_edges.loc[ox_filtered.index, 'cycling_infra'] = 'yes'
+    ox_edges.loc[ox_filtered.index, 'cycling_infrastructure'] = 'yes'
 
-ox_edges.cycling_infra.value_counts()
+ox_edges.cycling_infrastructure.value_counts()
 
 # Save data to graph
 cycling_infra_dict = ox_edges['cycling_infrastructure'].to_dict()
 nx.set_edge_attributes(G, cycling_infra_dict, 'cycling_infrastructure')
 
-# matches_id_dict = ox_edges[ref_id_col].to_dict()
-# nx.set_edge_attributes(G, matches_id_dict, 'matches_id')
 #%%
 # Simplify grap
-G_sim = sf.simplify_graph(G_updated, attributes = ['cycling_infra','highway'])
+G_sim = sf.momepy_simplify_graph(G, attributes = ['cycling_infrastructure','highway'])
 
+#%%
 # Get undirected
 G_sim_un = ox.get_undirected(G_sim)
 
-G_un = ox.get_undirected(G_updated)
+G_un = ox.get_undirected(G)
 
+#%%
 # Project to project crs
 G_sim_un = ox.project_graph(G_sim_un, to_crs=crs)
 G_un = ox.project_graph(G_un, to_crs=crs)
 
+#%%
 # Get simplified and undirected ox_edges and nodes
 ox_nodes_s, ox_edges_s = ox.graph_to_gdfs(G_sim_un)
 ox_nodes, ox_edges = ox.graph_to_gdfs(G_un)
@@ -163,18 +172,34 @@ ox_edges_s['org_osmid'] = ox_edges_s.osmid
 
 ox_edges_s.reset_index(inplace=True)
 
+ox_edges['org_osmid'] = ox_edges.osmid
+
+ox_edges.reset_index(inplace=True)
+
 ids = []
 for i in range(1000, 1000+len(ox_edges_s)):
     ids.append(i)
 
-ox_edges_s.edge_id = ids
+ox_edges_s['edge_id'] = ids
 
-assert len(ox_edges_s.edge_id.unique()) == len(ox_edges_s)
+ids = []
+for i in range(1000, 1000+len(ox_edges)):
+    ids.append(i)
+
+ox_edges['edge_id'] = ids
+
+assert len(ox_edges_s['edge_id'].unique()) == len(ox_edges_s)
+assert len(ox_edges['edge_id'].unique()) == len(ox_edges)
 
 assert ox_edges_s.crs == crs, 'Data is in wrong crs!'
-
+assert ox_edges.crs == crs, 'Data is in wrong crs!'
 #%%
 # Export data
+
+ox_edges = gf.clean_col_names(ox_edges)
+ox_nodes = gf.clean_col_names(ox_nodes)
+ox_edges_s = gf.clean_col_names(ox_edges_s)
+ox_nodes_s = gf.clean_col_names(ox_nodes_s)
 
 if use_postgres:
 
@@ -206,8 +231,14 @@ else:
 
     print('Saving data to file!')
 
-    ox.save_graphml(G_sim_un, filepath='../data/graph_osm.graphml')
-    ox.save_graphml(G_sim_un, filepath='../data/graph_osm.graphml')
+    ox.save_graphml(G_sim_un, filepath='../data/graph_osm_simple.graphml')
+    ox.save_graphml(G_un, filepath='../data/graph_osm.graphml')
+
+    with open('../data/osm_edges.pickle', 'wb') as handle:
+        pickle.dump(ox_edges, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    with open('../data/osm_nodes.pickle', 'wb') as handle:
+        pickle.dump(ox_nodes, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     with open('../data/osm_edges_sim.pickle', 'wb') as handle:
         pickle.dump(ox_edges_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -217,3 +248,25 @@ else:
 #%%
 #%%
 # TODO: Load traffic lights etc to DB?
+
+#%%
+#G_updated = G.edge_subgraph(ox_edges.index)
+
+# # Update edges based on matches with reference data
+# matches_fp = open('../data/matches.json')
+
+# matches = json.load(matches_fp)
+  
+# final_matches_df = pd.DataFrame.from_dict(matches,orient='index')
+# final_matches_df.rename(columns={0:'way_id'},inplace=True)
+# final_matches_df.reset_index(inplace=True)
+# final_matches_df.rename({'index':ref_id_col},inplace=True,axis=1)
+
+# updated_osm = ox_edges.merge(final_matches_df, left_on='osmid',right_on='way_id',how='left')
+
+
+# matches_id_dict = ox_edges[ref_id_col].to_dict()
+# nx.set_edge_attributes(G, matches_id_dict, 'matches_id')
+
+#,
+        #f"{ref_id_col}.notnull()"
