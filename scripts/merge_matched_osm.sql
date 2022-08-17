@@ -21,19 +21,3 @@ UPDATE osm_edges_simplified
         OR cycling_infrastructure = 'yes'
 ;   
 
-
--- UPDATE osm_edges_simplified
---     SET cycling_infrastructure = 'yes'
---     WHERE         
---         highway = 'cycleway' OR
---         highway = 'living_street' OR
---         cycleway IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         cycleway_left IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR 
---         cycleway_right IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         cycleway_both IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         highway = 'track' AND bicycle IN ('designated','yes') OR
---         highway = 'service' AND (bicycle = 'designated' or motor_vehicle ='no') OR
---         highway = 'path' AND bicycle IN ('designated','yes') OR
---         --cyclestreet = 'yes' OR
---         bicycle_road = 'yes'
--- ;
