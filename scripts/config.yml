@@ -2,7 +2,7 @@
 
 use_postgres: True
 
-osm_fp: '../data/raw/planet_kbh.osm.pbf' # '../data/osm/custom_files/denmark-latest.osm.pbf' 
+osm_fp: '../data/osm/kbhaug22.osm.pbf' # '../data/osm/custom_files/denmark-latest.osm.pbf' 
 geodk_fp: '../data/geodk/vejmidte_brudt.gpkg'
 geodk_id_col: 'fot_id'
 

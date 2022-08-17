@@ -48,28 +48,8 @@ extra_attr = ['cycleway:left','cycleway:right','cycleway:both','cycleway:width',
             'cycleway:surface','cyclestreet','sidewalk','crossing','barrier','bollard','flashing_lights','proposed','construction']
 
 #%%
-# osm_edges_fp = '../data/osm_edges_org.pickle'
-# osm_nodes_fp = '../data/osm_nodes_org.pickle'
-
-# if os.path.exists(osm_edges_fp) and os.path.exists(osm_nodes_fp):
-#     print('Loading data...')
-
-#     with open(osm_edges_fp, 'rb') as fp:
-#         edges = pickle.load(fp)
-
-#     with open(osm_nodes_fp, 'rb') as fp:
-#         nodes = pickle.load(fp)
-
-# else:
 print('Creating edge and node datasets...')
 nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
-
-    # with open(osm_edges_fp, 'wb') as handle:
-    #     pickle.dump(edges, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    # with open(osm_nodes_fp, 'wb') as handle:
-    #     pickle.dump(nodes, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
 
 #%%
 # Filter out edges with irrelevant highway types
@@ -125,10 +105,10 @@ ox_edges['cycling_infrastructure'] = 'no'
 
 queries = ["highway == 'cycleway'",
         "highway == 'living_street'",
-        "cycleway in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway']",
-        "cycleway_left in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway']",
-        "cycleway_right in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway']",
-        "cycleway_both in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway']",
+        "cycleway in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
+        "cycleway_left in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
+        "cycleway_right in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
+        "cycleway_both in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
         "bicycle_road == 'yes'",
         "highway == 'track' & bicycle in ['designated','yes']",
         "highway == 'service' & (bicycle == 'designated' or motor_vehicle == 'no')",
