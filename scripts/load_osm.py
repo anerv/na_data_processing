@@ -148,7 +148,16 @@ nx.set_edge_attributes(G, cycling_infra_dict, 'cycling_infrastructure')
 
 #%%
 # Simplify grap
-G_sim = sf.momepy_simplify_graph(G, attributes = ['cycling_infrastructure','highway'])
+G_sim = sf.momepy_simplify_graph(
+    G, 
+    attributes = [
+        'cycling_infrastructure',
+        'highway',
+        'cycleway',
+        'cycleway:right',
+        'cycleway:left',
+        'cycleway:both',
+        'bicycle_road'])
 
 #%%
 # Get undirected
