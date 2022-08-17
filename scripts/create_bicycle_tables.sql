@@ -28,54 +28,65 @@ UPDATE osm_edges_simplified
         OR sidewalk IN ('both', 'left', 'right')
 ;
 
--- TODO
+
 UPDATE osm_edges_simplified 
     SET protected = true
         WHERE 
+        geodk = 'Cykelsti langs vej' OR
+        highway == 'cycleway'
+        cycleway IN ('track','opposite_track')
+        cycleway_left IN ('track','opposite_track')
+        cycleway_right IN ('track','opposite_track')
+        cycleway_both IN ('track','opposite_track')
 ;
 
--- TODO
+
+UPDATE osm_edges_simplified 
+    SET protected = 'mixed'
+        WHERE
+        protected = true AND
+        geodk = 'Cykelbane langs vej' OR
+        bicycle_road = 'yes' OR
+        cycleway IN ('lane','opposite_lane','shared_lane','crossing') OR
+        cycleway_left in ('lane','opposite_lane','shared_lane','crossing') OR
+        cycleway_right in ('lane','opposite_lane','shared_lane','crossing') OR
+        cycleway_both in ('lane','opposite_lane','shared_lane','crossing')
+;
+
+
 UPDATE osm_edges_simplified
     SET protected = false
         WHERE 
+        protected IS NULL AND
         geodk = 'Cykelbane langs vej' OR
-
-
+        bicycle_road = 'yes' OR
+        cycleway IN ('lane','opposite_lane','shared_lane','crossing') OR
+        cycleway_left in ('lane','opposite_lane','shared_lane','crossing') OR
+        cycleway_right in ('lane','opposite_lane','shared_lane','crossing') OR
+        cycleway_both in ('lane','opposite_lane','shared_lane','crossing')
 ;
 
-osm_cycling_infrastructure_type:
-  'protected':
-    - "highway == 'cycleway'"
-    - "cycleway in ['track','opposite_track']"
-    - "cycleway_left in ['track','opposite_track']"
-    - "cycleway_right in ['track','opposite_track']"
-    - "cycleway_both in ['track','opposite_track']"
+UPDATE osm_edges_simplified 
+    SET protected = 'unknown' 
+        WHERE protected IS NULL AND cycling_infrastructure = 'yes'
+;
 
-  'unprotected':
-    - "cycleway in ['lane','opposite_lane','shared_lane','crossing']"
-    - "cycleway_left in ['lane','opposite_lane','shared_lane','crossing']"
-    - "cycleway_right in ['lane','opposite_lane','shared_lane','crossing']"
-    - "cycleway_both in ['lane','opposite_lane','shared_lane','crossing']"
-    - "bicycle_road == 'yes'"
-
-  'unknown':
-    - "cycleway in ['designated']"
-    - "cycleway_left in ['designated']"
-    - "cycleway_right in ['designated']"
-    - "cycleway_both in ['designated']"
-
-
--- Cycling infrastructure separated from car street network
-UPDATE osm_edges_simplified
-    SET bike_separated = 'true' 
-        WHERE highway IN ('cycleway', 'path', 'track')
-; 
-
-
+-- Cycling infrastructure separated from car street network - i.e. you are not biking in mixed traffic
 UPDATE osm_edges_simplified
     SET bike_separated = 'false' 
-        WHERE cycling_infrastructure = 'yes' AND highway NOT IN ('cycleway', 'path', 'track')
 ;
+
+UPDATE osm_edges_simplified
+    SET bike_separated = 'true' 
+        WHERE highway IN ('cycleway')
+        OR cycleway IN ('lane','track','opposite_lane','opposite_track')
+        OR cycleway_left IN ('lane','track','opposite_lane','opposite_track','shared_lane') 
+        OR cycleway_right IN ('lane','track','opposite_lane','opposite_track','shared_lane')
+        OR cycleway_both IN ('lane','track','opposite_lane','opposite_track','shared_lane')
+        OR highway IN ('path','track') AND bicycle IN ('designated','yes')
+        OR bicycle = 'designated' and motor_vehicle = 'no'
+;
+
 
 --Determining whether the segment of cycling infrastructure runs along a street or not
 -- Along a street with car traffic
@@ -84,6 +95,10 @@ UPDATE osm_edges_simplified
         WHERE car_traffic = 'yes' AND cycling_infrastructure = 'yes'
 ;
 
+UPDATE osm_edges_simplified 
+    SET along_street = 'true' 
+        WHERE geodk_bike IS NOT NULL
+;
 
 -- Capturing cycleways digitized as individual ways both still running parallel to a street
 CREATE VIEW cycleways AS 
@@ -106,7 +121,6 @@ UPDATE cycleways c SET along_street = 'true'
 DROP VIEW cycleways;
 DROP VIEW car_roads;
 
-
 -- UPDATE TABLE osm_edges
 --     SET COLUMN cycling_infrastructure = true
 --     WHERE         
@@ -123,8 +137,8 @@ DROP VIEW car_roads;
 --         bicycle_road = 'yes'
 -- ;
 
--- UPDATE TABLE osm_edges_simplified
---     SET COLUMN cycling_infrastructure = true
+-- UPDATE osm_edges_simplified
+--     SET cycling_infrastructure = 'yes'
 --     WHERE         
 --         highway = 'cycleway' OR
 --         highway = 'living_street' OR
