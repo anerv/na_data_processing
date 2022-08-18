@@ -28,3 +28,5 @@ ALTER TABLE osm_edges_simplified
 # Nodes with degrees more than 2?
 # Classify intersections as signalled/controlled or not
 # Classify edges as having a problematic or unproblematic intersection?
+
+# Speed!

@@ -21,3 +21,8 @@ UPDATE osm_edges_simplified
         OR cycling_infrastructure = 'yes'
 ;   
 
+-- Script if an edge is:
+-- a street
+-- connected to two edges where each of them is Geodk not NULL
+-- less than XX meters long
+    -- set to cycling infra yes (take value from GeoDK edges)
