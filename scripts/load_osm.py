@@ -165,17 +165,9 @@ ox_edges['org_osmid'] = ox_edges.osmid
 
 ox_edges.reset_index(inplace=True)
 
-ids = []
-for i in range(1000, 1000+len(ox_edges_s)):
-    ids.append(i)
+ox_edges_s['edge_id'] = ox_edges_s.u.astype(str) + ox_edges_s.v.astype(str) + ox_edges_s.key.astype(str)
+ox_edges['edge_id'] = ox_edges.u.astype(str) + ox_edges.v.astype(str) + ox_edges.key.astype(str)
 
-ox_edges_s['edge_id'] = ids
-
-ids = []
-for i in range(1000, 1000+len(ox_edges)):
-    ids.append(i)
-
-ox_edges['edge_id'] = ids
 
 assert len(ox_edges_s['edge_id'].unique()) == len(ox_edges_s)
 assert len(ox_edges['edge_id'].unique()) == len(ox_edges)
