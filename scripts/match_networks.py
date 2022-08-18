@@ -88,7 +88,6 @@ matches_fp = f'../data/cycling_segment_matches.pickle'
 with open(matches_fp, 'wb') as f:
         pickle.dump(cycling_segment_matches, f)
 
-#%%
 # Summarize to feature matches
 osm_matched_ids, osm_undec = mf.summarize_feature_matches(osm_cycling_segments, cycling_segment_matches,'seg_id','osmid',osm=True)
 osm_edges_simplified.loc[osm_edges_simplified.edge_id.isin(osm_matched_ids)].plot();
@@ -100,15 +99,17 @@ geodk_simplified.loc[geodk_simplified.edge_id.isin(ref_matched_ids)].plot();
 # Get unmatched data
 ref_segments_unmatched = ref_segments.loc[~ref_segments.edge_id.isin(ref_matched_ids)]
 osm_segments_no_bike = osm_segments.loc[osm_segments.cycling_infrastructure =='no']
+
+ref_segments_unmatched = ref_segments_unmatched.loc[ref_segments_unmatched.highway != 'footway']
+ref_segments_foot = ref_segments_unmatched.loc[ref_segments_unmatched.highway == 'footway']
 #%%
-# Match segments
+# Match segments v. 2
 print('Starting matching of unmatched segments...')
 
 buffer_matches_unmatched = mf.overlay_buffer(reference_data=ref_segments_unmatched, osm_data=osm_segments_no_bike, ref_id_col='seg_id_ref', osm_id_col='seg_id', dist=15)
 
 print('Buffer matches found!')
 
-#%%
 # Find segment matches v.2
 segment_matches_unmatched = mf.find_matches_from_buffer(buffer_matches=buffer_matches_unmatched, osm_edges=osm_segments_no_bike, reference_data=ref_segments_unmatched, angular_threshold=30, hausdorff_threshold=17)
 
@@ -118,7 +119,7 @@ matches_fp = f'../data/segment_matches_unmatched.pickle'
 with open(matches_fp, 'wb') as f:
         pickle.dump(segment_matches_unmatched, f)
 
-#%%
+
 # Summarize to feature matches
 osm_matched_ids_2, osm_undec_2 = mf.summarize_feature_matches(osm_segments_no_bike, segment_matches_unmatched,'seg_id','osmid',osm=True)
 osm_edges_simplified.loc[osm_edges_simplified.edge_id.isin(osm_matched_ids_2)].plot();
@@ -128,11 +129,38 @@ ref_matched_ids_2, ref_undec_2 = mf.summarize_feature_matches(ref_segments_unmat
 geodk_simplified.loc[geodk_simplified.edge_id.isin(ref_matched_ids_2)].plot();
 
 #%%
-# Merge matches
-segment_matches = pd.concat([cycling_segment_matches, segment_matches_unmatched])
+# Match segments - footways
+print('Starting matching of unmatched segments...')
 
-assert len(segment_matches) == len(cycling_segment_matches) + len(segment_matches_unmatched)
-assert segment_matches.columns.to_list() == cycling_segment_matches.columns.to_list() == segment_matches_unmatched.columns.to_list()
+buffer_matches_foot = mf.overlay_buffer(reference_data=ref_segments_foot, osm_data=osm_segments_no_bike, ref_id_col='seg_id_ref', osm_id_col='seg_id', dist=15)
+
+print('Buffer matches using footways found!')
+
+# Find segment matches v.2
+segment_matches_foot = mf.find_matches_from_buffer(buffer_matches=buffer_matches_unmatched, osm_edges=osm_segments_no_bike, reference_data=ref_segments_foot, angular_threshold=30, hausdorff_threshold=17)
+
+print('Feature matching round 3 completed!')
+
+matches_fp = f'../data/segment_matches_footways.pickle'
+with open(matches_fp, 'wb') as f:
+        pickle.dump(segment_matches_foot, f)
+
+
+# Summarize to feature matches
+osm_matched_ids_3, osm_undec_3 = mf.summarize_feature_matches(osm_segments_no_bike, segment_matches_foot,'seg_id','osmid',osm=True)
+osm_edges_simplified.loc[osm_edges_simplified.edge_id.isin(osm_matched_ids_3)].plot();
+
+# Summarize
+ref_matched_ids_3, ref_undec_3 = mf.summarize_feature_matches(ref_segments_foot, segment_matches_foot, 'seg_id_ref','edge_id',osm=False)
+geodk_simplified.loc[geodk_simplified.edge_id.isin(ref_matched_ids_3)].plot();
+
+
+#%%
+# Merge matches
+segment_matches = pd.concat([cycling_segment_matches, segment_matches_unmatched, segment_matches_foot])
+
+assert len(segment_matches) == len(cycling_segment_matches) + len(segment_matches_unmatched) + len(segment_matches_foot)
+assert segment_matches.columns.to_list() == cycling_segment_matches.columns.to_list() == segment_matches_unmatched.columns.to_list() == segment_matches_foot.columns.to_list()
 #%%
 matches_fp = f'../data/segment_matches_full.pickle'
 with open(matches_fp, 'wb') as f:
