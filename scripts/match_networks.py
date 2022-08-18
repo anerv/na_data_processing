@@ -29,20 +29,20 @@ print('Settings loaded!')
 
 #%%
 # Load data
-connection = dbf.connect_pg(db_name, db_user, db_password)
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
 get_geodk = "SELECT * FROM geodk_bike_simple;"
 
 get_osm = 'SELECT osmid, cycling_infrastructure, edge_id, geometry FROM osm_edges_simplified;'
 
-geodk_simplified = gpd.GeoDataFrame.from_postgis(get_geodk, connection, geom_col='geometry' )
+geodk_simplified = gpd.GeoDataFrame.from_postgis(get_geodk, engine, geom_col='geometry' )
 
-osm_edges_simplified = gpd.GeoDataFrame.from_postgis(get_osm, connection, geom_col='geometry')
+osm_edges_simplified = gpd.GeoDataFrame.from_postgis(get_osm, engine, geom_col='geometry')
 
 assert len(geodk_simplified) == len(geodk_simplified['edge_id'].unique())
 assert len(osm_edges_simplified) == len(osm_edges_simplified['edge_id'].unique())
 
-
+#%%
 # Get subset
 bb = osm_edges_simplified.unary_union.bounds
 #geodk_simplified = geodk_simplified.clip(osm_edges_simplified.unary_union.envelope)
