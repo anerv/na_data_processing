@@ -7,7 +7,7 @@ ALTER TABLE osm_edges_simplified
 ;
 
 UPDATE osm_edges_simplified SET geodk_bike = om.vejklasse
-	FROM osm_matches om WHERE osm_edges_simplified.edge_id = om.edge_id
+	FROM osm_matches_roadclass om WHERE osm_edges_simplified.edge_id = om.edge_id
 ;
 
 UPDATE osm_edges_simplified 
@@ -21,8 +21,3 @@ UPDATE osm_edges_simplified
         OR cycling_infrastructure = 'yes'
 ;   
 
--- Script if an edge is:
--- a street
--- connected to two edges where each of them is Geodk not NULL
--- less than XX meters long
-    -- set to cycling infra yes (take value from GeoDK edges)
