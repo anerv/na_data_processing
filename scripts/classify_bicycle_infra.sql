@@ -11,7 +11,7 @@ UPDATE osm_edges_simplified
     SET cycling_allowed = 'yes' 
         WHERE bicycle IN ('permissive', 'ok', 'allowed', 'designated')
         OR highway = 'cycleway'
-        OR "cycling_infrastructure" = 'yes'
+        OR "cycling_infrastructure_new" = 'yes'
 ;
 
 UPDATE osm_edges_simplified
@@ -32,7 +32,7 @@ UPDATE osm_edges_simplified
 UPDATE osm_edges_simplified 
     SET protected = true
         WHERE 
-        geodk = 'Cykelsti langs vej' OR
+        geodk_bike = 'Cykelsti langs vej' OR
         highway == 'cycleway'
         cycleway IN ('track','opposite_track')
         cycleway_left IN ('track','opposite_track')
@@ -45,7 +45,7 @@ UPDATE osm_edges_simplified
     SET protected = 'mixed'
         WHERE
         protected = true AND
-        geodk = 'Cykelbane langs vej' OR
+        geodk_bike = 'Cykelbane langs vej' OR
         bicycle_road = 'yes' OR
         cycleway IN ('lane','opposite_lane','shared_lane','crossing') OR
         cycleway_left in ('lane','opposite_lane','shared_lane','crossing') OR
@@ -58,7 +58,7 @@ UPDATE osm_edges_simplified
     SET protected = false
         WHERE 
         protected IS NULL AND
-        geodk = 'Cykelbane langs vej' OR
+        geodk_bike = 'Cykelbane langs vej' OR
         bicycle_road = 'yes' OR
         cycleway IN ('lane','opposite_lane','shared_lane','crossing') OR
         cycleway_left in ('lane','opposite_lane','shared_lane','crossing') OR
@@ -72,8 +72,10 @@ UPDATE osm_edges_simplified
 ;
 
 -- Cycling infrastructure separated from car street network - i.e. you are not biking in mixed traffic
+-- False if not known to be true
 UPDATE osm_edges_simplified
     SET bike_separated = 'false' 
+        WHERE cycling_infra_new = 'yes'
 ;
 
 UPDATE osm_edges_simplified
@@ -85,14 +87,14 @@ UPDATE osm_edges_simplified
         OR cycleway_both IN ('lane','track','opposite_lane','opposite_track','shared_lane')
         OR highway IN ('path','track') AND bicycle IN ('designated','yes')
         OR bicycle = 'designated' and motor_vehicle = 'no'
+        OR geodk_bike = 'Cykelsti langs vej';
 ;
-
 
 --Determining whether the segment of cycling infrastructure runs along a street or not
 -- Along a street with car traffic
 UPDATE osm_edges_simplified 
     SET along_street = 'true' 
-        WHERE car_traffic = 'yes' AND cycling_infrastructure = 'yes'
+        WHERE car_traffic = 'yes' AND cycling_infrastructure_new = 'yes'
 ;
 
 UPDATE osm_edges_simplified 
@@ -120,6 +122,9 @@ UPDATE cycleways c SET along_street = 'true'
 
 DROP VIEW cycleways;
 DROP VIEW car_roads;
+
+
+-- EDGES LEADING TO UNREGULATED INTERSECTIONS
 
 -- UPDATE TABLE osm_edges
 --     SET COLUMN cycling_infrastructure = true
