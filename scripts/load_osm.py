@@ -43,14 +43,16 @@ print('Settings loaded!')
 #%%
 osm = pyrosm.OSM(osm_fp)
 
-extra_attr = ['cycleway:left','cycleway:right','cycleway:both','cycleway:width',
-            'cycleway:left:width','cycleway:right:width','cycleway:both:width','bicycle_road','oneway_bicycle'
+extra_attr = ['surface','cycleway:left','cycleway:right','cycleway:both','cycleway:width','pedestrian:surface',
+            'cycleway:left:width','cycleway:right:width','cycleway:both:width','bicycle_road','oneway_bicycle','maxspeed'
             'cycleway:surface','cyclestreet','sidewalk','crossing','barrier','bollard','flashing_lights','proposed','construction']
+
 
 #%%
 print('Creating edge and node datasets...')
 nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
 
+# TODO: Explode tag dictionary to columns
 #%%
 # Filter out edges with irrelevant highway types
 unused_highway_values = ['abandoned','planned','proposed','construction','disused','elevator',
@@ -165,9 +167,8 @@ ox_edges['org_osmid'] = ox_edges.osmid
 
 ox_edges.reset_index(inplace=True)
 
-ox_edges_s['edge_id'] = ox_edges_s.u.astype(str) + ox_edges_s.v.astype(str) + ox_edges_s.key.astype(str)
-ox_edges['edge_id'] = ox_edges.u.astype(str) + ox_edges.v.astype(str) + ox_edges.key.astype(str)
-
+ox_edges['edge_id'] = ox_edges.reset_index().index
+ox_edges_s['edge_id'] = ox_edges_s.reset_index().index
 
 assert len(ox_edges_s['edge_id'].unique()) == len(ox_edges_s)
 assert len(ox_edges['edge_id'].unique()) == len(ox_edges)

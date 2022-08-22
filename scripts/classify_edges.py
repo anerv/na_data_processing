@@ -33,7 +33,7 @@ connection = dbf.connect_pg(db_name, db_user, db_password)
 
 engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-q = '../sql/classify_bicycle_infra.sql'
+q = 'sql/classify_bicycle_infra.sql'
 
 classify = dbf.run_query_pg(q, connection)
 
@@ -53,7 +53,7 @@ connection = dbf.connect_pg(db_name, db_user, db_password)
 
 engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-q = '../sql/fill_missing_values.sql'
+q = 'sql/fill_missing_values.sql'
 
 interpolate = dbf.run_query_pg(q, connection)
 
