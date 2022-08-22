@@ -46,64 +46,32 @@ CREATE VIEW gaps_nodes AS
 ;
 
 CREATE TABLE gaps_connectors AS
-SELECT * FROM osm_edges_simplified WHERE 
-(u IN (SELECT u FROM gaps_nodes) OR v IN (SELECT u FROM gaps_nodes))
-AND name IN (SELECT name FROM gaps) AND geodk_bike IS NOT NULL;
-
-
-CREATE TABLE gaps_links AS SELECT * FROM gaps
-UNION
-SELECT * FROM gaps_connectors;
-
-
---DROP VIEW endpoints;
---CREATE VIEW endpoints AS (SELECT ST_Collect(ST_StartPoint(geometry), ST_EndPoint(geometry)) AS geom, edge_id FROM gaps_links);
---DROP VIEW clusters;
--- CREATE VIEW clusters  AS (SELECT unnest(ST_ClusterWithin(geom, 1e-8)) AS geom FROM endpoints);
-
---DROP VIEW clusters_with_ids;
---CREATE VIEW clusters_with_ids AS (SELECT row_number() OVER () AS cid, ST_CollectionHomogenize(geom) AS geom FROM clusters);
----- SELECT ST_Collect(gaps_links.geometry) AS geom
--- FROM gaps_links
--- LEFT JOIN clusters_with_ids ON ST_Intersects(gaps_links.geometry, clusters_with_ids.geom)
--- GROUP BY cid;
-
---SELECT * FROM clusters_with_ids;
-
-SELECT * FROM endpoints;
-
-
-
-WITH endpoints AS (SELECT ST_Collect(ST_StartPoint(geom), ST_EndPoint(geom)) AS geom FROM gaps_links),
-     clusters  AS (SELECT unnest(ST_ClusterWithin(geom, 1e-8)) AS geom FROM endpoints),
-     clusters_with_ids AS (SELECT row_number() OVER () AS cid, ST_CollectionHomogenize(geom) AS geom FROM clusters)
-SELECT ST_Collect(test_lines.geom) AS geom
-FROM test_lines
-LEFT JOIN clusters_with_ids ON ST_Intersects(test_lines.geom, clusters_with_ids.geom)
-
-
---GROUP BY cid;
-
-
-
-
-WITH data(geom) AS SELECT geometry FROM gaps_links,
-merged AS (SELECT (ST_Dump( ST_LineMerge( ST_Collect(geom) ) )).geom FROM data
-)
-CREATE VIEW merged_gaps AS SELECT row_number() OVER () AS cid, geom FROM merged;
-
--- SELECT all edges that share a node with gaps
--- 
-
-
-
-
-UPDATE osm_edges_simplified SET cycling_infra_new = 'yes' WHERE 
-JOIN osm_edges_simplified ON gaps 
-
-UPDATE osm_edges_simplified SET cycling_infra_new = 'yes'
-	FROM gaps WHERE osm_edges_simplified.edge_id = gaps.edge_id
+    SELECT * FROM osm_edges_simplified 
+    WHERE (u IN (SELECT u FROM gaps_nodes) OR v IN (SELECT u FROM gaps_nodes))
+    AND name IN (SELECT name FROM gaps) AND geodk_bike IS NOT NULL
 ;
 
--- Repeat with smaller tolerance between geodk and cycling infra?
+CREATE TABLE gaps_joined AS 
+    SELECT array_agg(g.edge_id) AS edge_ids, 
+    gaps.geometry AS geometry, 
+    UNNEST(ARRAY_AGG(DISTINCT(gaps.edge_id))) AS gaps_id, 
+    UNNEST(ARRAY_AGG(DISTINCT(g.geodk_bike))) AS roadclass 
+FROM gaps_connectors g, gaps 
+    WHERE ST_Touches(g.geometry, gaps.geometry) GROUP BY gaps.geometry
+;
 
+DELETE FROM gaps_joined WHERE gaps_id IS NULL;
+
+UPDATE osm_edges_simplified 
+SET geodk_bike = g.roadclass FROM gaps_joined g WHERE osm_edges_simplified.edge_id = g.gaps_id;
+
+
+-- CREATE TABLE gaps_and_links AS SELECT * FROM gaps
+-- UNION
+-- SELECT * FROM gaps_connectors
+-- ;
+
+-- CREATE TABLE merged AS  
+--     WITH data AS (SELECT edge_id, geodk_bike, geometry FROM gaps_and_links)
+--         SELECT (ST_Dump( ST_LineMerge( ST_Collect(geometry) ) )).geom FROM data
+-- ;
