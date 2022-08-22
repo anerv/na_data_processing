@@ -4,6 +4,7 @@ import pandas as pd
 from shapely.ops import linemerge, substring
 from shapely.geometry import MultiLineString
 import momepy 
+import osmnx as ox
 
 def clean_col_names(df):
 
