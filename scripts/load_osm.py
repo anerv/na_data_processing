@@ -52,7 +52,21 @@ extra_attr = ['surface','cycleway:left','cycleway:right','cycleway:both','cyclew
 print('Creating edge and node datasets...')
 nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
 
-# TODO: Explode tag dictionary to columns
+# Explode tags dict to get cycleway surface
+edges['temp_id'] = edges.index
+
+edges_selection = edges.loc[edges.tags.notna()].copy()
+
+edges_selection['dict'] = edges_selection['tags'].astype(str).apply(lambda x: json.loads(x))
+edges_selection = edges_selection[['temp_id','dict']]
+
+expl = edges_selection.dict.apply(pd.Series)
+expl = expl[['cycleway:surface','footway:surface']]
+attr = expl.join(edges_selection)
+
+edges = edges.merge(attr, on='temp_id', how='left')
+edges.drop('tags',axis=1)
+edges.rename({'dict':'tags'},inplace=True, axis=1)
 #%%
 # Filter out edges with irrelevant highway types
 unused_highway_values = ['abandoned','planned','proposed','construction','disused','elevator',
