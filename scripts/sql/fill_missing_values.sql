@@ -1,7 +1,7 @@
 ALTER TABLE osm_edges_simplified
-    ADD COLUMN cycling_surface_as VARCHAR,
-    ADD COLUMN lit_as VARCHAR,
-    ADD COLUMN speed_as VARCHAR 
+    ADD COLUMN cycling_surface_as VARCHAR DEFAULT NULL,
+    ADD COLUMN lit_as VARCHAR DEFAULT NULL,
+    ADD COLUMN speed_as VARCHAR DEFAULT NULL
 ;
 
 -- SURFACE
@@ -84,20 +84,26 @@ UPDATE osm_edges_simplified
 --UPDATE osm_edges_simplified SET lit_as = 'yes' WHERE along_street = true IF -- intersects with urban area??
 
 -- SPEED 
-UPDATE osm_edges_simplified SET speed_as = speed;
-UPDATE osm_edges_simplified SET speed_as
-    CASE
+-- UPDATE osm_edges_simplified SET speed_as = speed;
+-- UPDATE osm_edges_simplified WHERE speed_as IS NULL
+--     SET speed_as
+--         CASE
+--             WHEN highway IN ('motorway','motorway_link',) THEN 130
+--             WHEN highway IN ('residential') THEN 
+--             WHEN highway IN ('trunk','trunk_link') THEN
+--             WHEN highway IN ('living_street','bicycle_street') THEN
+--         END
+-- ;
 
-        ('trunk',
-        'trunk_link',
-        'tertiary',
-        'tertiary_link',
-        'secondary',
-        'secondary_link',
-        'living_street',
-        'primary',
-        'primary_link',
-        'residential',
-        'motorway',
-        'motorway_link',
-        'service') 
+
+--         ('trunk', 'trunk_link',
+--         'tertiary',
+--         'tertiary_link',
+--         'secondary',
+--         'secondary_link',
+--         'living_street',
+--         'primary',
+--         'primary_link',
+--         'residential',
+  
+--         'service') 

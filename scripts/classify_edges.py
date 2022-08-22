@@ -26,35 +26,43 @@ with open(r'config.yml') as file:
   
 print('Settings loaded!')
 #%%
-# For all of them, create new col with assumed values
-# Only update those with no existing value
 
-# Langs med vej
-# All those where it is a tagged to a highway for cars --> along street
+print('Classifying edges...')
 
-# If not along street - I need to look at land use?
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-# Protected
-# Track --> protected
-# If its a path with no car traffic/i.e. not along the street --> protected
-# Otherwise, unprotected
-# Also look at GeoDK
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
+q = '../sql/classify_bicycle_infra.sql'
 
-# Surface
-# Here we look at the type of highway - all regular streets assumed to be some type of hard surface
-# If GEODK says that there is cycling infra - also hard surface
-# If its a track along a street - hard surface 
+classify = dbf.run_query_pg(q, connection)
 
-# If its NOT along a street and nothing is tagged - we assume unpaved
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
+q = 'SELECT edge_id, protected FROM osm_edges_simplified WHERE protected = true LIMIT 10;'
 
-# Light
-# If its in a city and along a street --> we assume light
-# otherwise no light is assumed
+test = dbf.run_query_pg(q, connection)
 
-# Intersections
-# Step one is to detect intersections
-# Nodes with degrees more than 2?
-# Classify intersections as signalled/controlled or not
-# Classify edges as having a problematic or unproblematic intersection?
+print(test)
+
+#%%
+
+print('Interpolating missing attributes...')
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+
+q = '../sql/fill_missing_values.sql'
+
+interpolate = dbf.run_query_pg(q, connection)
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+q = "SELECT edge_id, protected FROM osm_edges_simplified WHERE lit_as = 'yes' LIMIT 10;"
+
+test = dbf.run_query_pg(q, connection)
+
+print(test)
+
+#%%
