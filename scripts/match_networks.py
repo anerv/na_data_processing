@@ -49,7 +49,8 @@ bb = osm_edges_simplified.unary_union.bounds
 
 geodk = geodk.cx[bb[0]:bb[2],bb[1]:bb[3]]
 
-osm_edges_simplified = osm_edges_simplified.loc[osm_edges_simplified.highway != 'service'] # Do not include service in matching process
+#osm_edges_simplified = osm_edges_simplified.loc[osm_edges_simplified.highway != 'service'] # Do not include service in matching process
+osm_edges_simplified = osm_edges_simplified.loc[~osm_edges_simplified.highway.isin(['service','footway'])] # Do not include service or footways in matching process
 
 #%%
 # Create segments
@@ -69,7 +70,7 @@ print('Segments created!')
 #%%
 osm_segments = osm_segments.cx[723229:726967,6174804:6177600]
 ref_segments = ref_segments.cx[723229:726967,6174804:6177600]
-#%%
+
 osm_edges_simplified = osm_edges_simplified.cx[723229:726967,6174804:6177600]
 geodk = geodk.cx[723229:726967,6174804:6177600]
 #723229 6174804 : 726967 6177600
