@@ -68,11 +68,11 @@ ref_segments.dropna(subset=['geometry'],inplace=True)
 print('Segments created!')
 
 #%%
-osm_segments = osm_segments.cx[723229:726967,6174804:6177600]
-ref_segments = ref_segments.cx[723229:726967,6174804:6177600]
+# osm_segments = osm_segments.cx[723229:726967,6174804:6177600]
+# ref_segments = ref_segments.cx[723229:726967,6174804:6177600]
 
-osm_edges_simplified = osm_edges_simplified.cx[723229:726967,6174804:6177600]
-geodk = geodk.cx[723229:726967,6174804:6177600]
+# osm_edges_simplified = osm_edges_simplified.cx[723229:726967,6174804:6177600]
+# geodk = geodk.cx[723229:726967,6174804:6177600]
 #723229 6174804 : 726967 6177600
 #%%
 # Match cycling segments
@@ -154,6 +154,7 @@ with open(matches_fp, 'wb') as f:
         pickle.dump(segment_matches, f)
 
 #%%
+# Print outcome
 osm_matched_ids = osm_matched_ids + osm_matched_ids_2 
 ref_matched_ids = ref_matched_ids + ref_matched_ids_2 
 
@@ -278,31 +279,6 @@ if use_postgres:
     connection.close()
 
 #%%
-# MISSING: Write query that finds all footways matched to GEODK - if path (e.g. connected edges) are less than 50 meters, set to null
-
-if use_postgres:
-
-        print('Fixing misclassified footways...')
-
-        connection = dbf.connect_pg(db_name, db_user, db_password)
-
-        engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
-
-        q = 'sql/reclassify_footways.sql'
-
-        footways = dbf.run_query_pg(q, connection)
-
-        connection = dbf.connect_pg(db_name, db_user, db_password)
-
-        q = "SELECT edge_id, geodk_bike FROM osm_edges_simplified WHERE highway = 'footway' and geodk_bike IS NOT NULL LIMIT 10;"
-
-        test = dbf.run_query_pg(q, connection)
-
-        print(test)
-
-
-#%%
-# MISSING: Write query that closes gaps in network matches to geodk
 
 if use_postgres:
 
