@@ -65,8 +65,8 @@ expl = expl[['cycleway:surface','footway:surface']]
 attr = expl.join(edges_selection)
 
 edges = edges.merge(attr, on='temp_id', how='left')
-edges.drop('tags',axis=1)
-edges.rename({'dict':'tags'},inplace=True, axis=1)
+edges.drop('dict',axis=1,inplace=True)
+#edges.rename({'dict':'tags'},inplace=True, axis=1)
 #%%
 # Filter out edges with irrelevant highway types
 unused_highway_values = ['abandoned','planned','proposed','construction','disused','elevator',
