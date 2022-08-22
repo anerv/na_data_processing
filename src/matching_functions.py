@@ -428,9 +428,9 @@ def update_osm(osm_segments, osm_data, final_matches, attr, edge_id_col, seg_id_
     attr_df = pd.DataFrame.from_dict(ids_attr_dict, orient='index')
     attr_df.reset_index(inplace=True)
     attr_df.rename(columns={'index':edge_id_col,0:attr}, inplace=True)
-    attr_df[edge_id_col] = attr_df[edge_id_col].astype(int)
+    attr_df[edge_id_col] = attr_df[edge_id_col].astype('float')
 
-    osm_data['id_merge_col'] = osm_data[edge_id_col].astype(int)
+    osm_data['id_merge_col'] = osm_data[edge_id_col].astype('float')
     updated_osm = osm_data.merge(attr_df, left_on='id_merge_col', right_on=edge_id_col, how='inner', suffixes=('','_matched'))
 
     updated_osm.drop(['id_merge_col'],axis=1,inplace=True)
@@ -468,7 +468,7 @@ def _summarize_attribute_matches(osm_segments, segment_matches, edge_id_col, seg
 
     for i in org_ids:
         
-        feature = osm_merged.loc[osm_merged[edge_id_col] == i].copy(deep=True)
+        feature = osm_merged.loc[osm_merged[edge_id_col] == i].copy()
         feature[attr] = feature[attr].fillna('none')
 
         matched_values = feature[attr].unique()
