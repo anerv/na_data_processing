@@ -288,19 +288,20 @@ if use_postgres:
 
         engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-        q = '../sql/fill_geodk_gaps.sql'
+        q = "SELECT COUNT (*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;"
+        count1 = dbf.run_query_pg(q, connection)[0][0]
 
+        q = 'sql/fill_geodk_gaps.sql'
         gaps = dbf.run_query_pg(q, connection)
 
-        connection = dbf.connect_pg(db_name, db_user, db_password)
+        connection = dbf.connect_pg(db_name, db_user, db_password)[0][0]
 
-        # TODO
-        q = 'SELECT edge_id, geodk_bike FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL LIMIT 10;'
+        q = "SELECT COUNT (*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;"
 
-        test = dbf.run_query_pg(q, connection)
+        count2 = dbf.run_query_pg(q, connection)
 
-        print(test)
-
+        print(f'{count2-count1} gaps where closed!')
 
 # %%
+
 
