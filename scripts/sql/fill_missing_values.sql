@@ -1,35 +1,51 @@
 ALTER TABLE osm_edges_simplified
-    ADD COLUMN cycling_surface_as VARCHAR DEFAULT NULL,
+    ADD COLUMN cycling_surface_as VARCHAR DEFAULT NULL, -- 'as' = 'assumed'
     ADD COLUMN lit_as VARCHAR DEFAULT NULL,
     ADD COLUMN speed_as VARCHAR DEFAULT NULL
 ;
 
+
+-- Limiting number of road segments with road type 'unknown'
+CREATE VIEW unknown_roadtype AS 
+    (SELECT name, osm_id, highway, geometry FROM osm_edges_simplified WHERE highway = 'unclassified')
+;
+
+CREATE VIEW known_roadtype AS 
+    (SELECT name, osm_id, highway, geometry FROM osm_edges_simplified 
+        WHERE highway != 'unclassified' AND highway != 'cycleway');
+
+UPDATE unknown_roadtype uk SET highway = kr.highway FROM known_roadtype kr 
+    WHERE ST_Touches(uk.geometry, kr.geometry) AND uk.name = kr.name;
+
+-- UPDATE unknown_roadtype uk SET highway = kr.highway FROM known_roadtype kr 
+--     WHERE uk.name = kr.name AND uk.highway = 'unclassified';
+
+DROP VIEW unknown_roadtype;
+DROP VIEW known_roadtype;
+
+
 -- SURFACE
 ALTER TABLE osm_matches_surface
-    ADD COLUMN surface VARCHAR;
-
+    ADD COLUMN surface VARCHAR
+;
+    
 UPDATE osm_matches_surface SET surface = 'paved' WHERE overflade = 'Befæstet';
 UPDATE osm_matches_surface SET surface = 'unpaved' WHERE overflade = 'Ubefæstet';
 UPDATE osm_matches_surface SET surface = 'unknown' WHERE overflade = 'Ukendt';
 UPDATE osm_matches_surface SET surface = 'paved' WHERE surface IS NULL; -- Catch edges with both befæstet/ubefæstet due to simplification 
 
-UPDATE osm_edges_simplified SET cycling_surface = om.overflade
+-- Surface from GeoDK is not assumed
+UPDATE osm_edges_simplified SET cycleway_surface = om.surface
     FROM osm_matches_surface om WHERE osm_edges_simplified.edge_id = om.edge_id
-    AND cycling_surface IS NULL;
+    AND cycleway_surface IS NULL;
 ;
 
-UPDATE osm_edges_simplified SET surface_as = surface;
-UPDATE osm_edges_simplified SET surface_as = cycling_surface;
+UPDATE osm_edges_simplified SET cycling_surface_as = surface WHERE surface != 'unknown' AND cycling_infra_new = 'yes';;
+UPDATE osm_edges_simplified SET cycling_surface_as = cycleway_surface;
 
+-- Cycling surface is assumed paved if along a car street    
 UPDATE osm_edges_simplified 
-    SET surface_as = 'paved' 
-        WHERE geodk_bike IS NOT NULL 
-        AND surface_as IS NULL
-; 
-
-    
-UPDATE osm_edges_simplified 
-    SET surface_as = 'paved' 
+    SET cycling_surface_as = 'paved' 
         WHERE highway IN (
             'trunk',
             'trunk_link',
@@ -44,12 +60,13 @@ UPDATE osm_edges_simplified
             'motorway',
             'motorway_link',
             'service') 
-            AND surface_as IS NULL
+            AND cycling_surface_as IS NULL
+            AND cycling_infra_new = 'yes';
 ;
 
 UPDATE osm_edges_simplified 
-    SET surface_as = 'paved' 
-        WHERE along_street = true AND surface IS NULL;
+    SET cycling_surface_as = 'paved' 
+        WHERE along_street = true AND surface IS NULL AND cycling_infra_new = 'yes';
 
 
 -- LIT
@@ -78,8 +95,10 @@ UPDATE osm_edges_simplified
         WHERE along_street = true 
         AND highway = 'cycleway' 
         AND urban_area = 'yes'
-        AND lit_as IS NULL;
-; -- is this safe to assume??
+        AND lit_as IS NULL
+;
+
+ -- is this safe to assume??
 
 --UPDATE osm_edges_simplified SET lit_as = 'yes' WHERE along_street = true IF -- intersects with urban area??
 

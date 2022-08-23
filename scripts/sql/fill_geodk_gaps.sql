@@ -17,7 +17,7 @@ CREATE TABLE potential_gaps AS
             'motorway',
             'motorway_link',
             'unclassified') 
-            AND (cycling_infra_new != 'yes' OR cycling_infra_new IS NULL)
+            AND (cycling_infra_new = 'no')
 ;
 
 CREATE TABLE matched_nodes AS 

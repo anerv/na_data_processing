@@ -1,42 +1,70 @@
+-- For all edges where cycling is allowed, I want to know
+-- if there is cycling infra (yes, no)
+-- if the cycling infra is protected (yes, no)
+-- if you are cycling in mixed traffic
+-- if there are lights (yes, no)
+-- the speed limit
+-- what type of intersections we have
+
 ALTER TABLE osm_edges_simplified
     -- ADD COLUMN cycling_infrastructure VARCHAR DEFAULT NULL,
     ADD COLUMN cycling_allowed VARCHAR DEFAULT NULL,
     ADD COLUMN protected VARCHAR DEFAULT NULL,
-    ADD COLUMN pedestrian_allowed VARCHAR DEFAULT NULL,
+    ADD COLUMN car_traffic VARCHAR DEFAULT NULL,
+    --ADD COLUMN pedestrian_allowed VARCHAR DEFAULT NULL,
     ADD COLUMN bike_separated VARCHAR DEFAULT NULL,
     ADD COLUMN along_street VARCHAR DEFAULT NULL
 ;
 
+
+-- Updating value in column car_traffic
+UPDATE osm_edges_simplified SET car_traffic = 'yes' 
+    WHERE highway IN (
+            'trunk',
+            'trunk_link',
+            'tertiary',
+            'tertiary_link',
+            'secondary',
+            'secondary_link',
+            'living_street',
+            'primary',
+            'primary_link',
+            'residential',
+            'motorway',
+            'motorway_link',
+            'service') 
+        OR highway = 'unclassified' AND 'name' IS NOT NULL AND (access NOT IN ('no', 'restricted') OR (maxspeed::integer > 15) OR motorcar != 'no' OR motor_vehicle != 'no');
+
+
 UPDATE osm_edges_simplified
     SET cycling_allowed = 'yes' 
-        WHERE bicycle IN ('permissive', 'ok', 'allowed', 'designated')
+        WHERE bicycle IN ('yes','permissive', 'ok', 'allowed', 'designated')
         OR highway = 'cycleway'
-        OR "cycling_infrastructure_new" = 'yes'
+        OR cycling_infra_new = 'yes'
 ;
 
 UPDATE osm_edges_simplified
     SET cycling_allowed = 'no'
         WHERE bicycle IN ('no', 'dismount', 'use_sidepath')
-        OR (road_type = 'motorvej' AND cycling_infrastructure IS NULL)
+        OR (highway IN ('motorway','motorway_link') AND cycling_infra_new = 'no')
 ;
 
--- Segments where pedestrians are allowed
-UPDATE osm_edges_simplified 
-    SET pedestrian_allowed = 'yes' 
-        WHERE highway in ('pedestrian', 'path', 'footway', 'steps')
-        OR foot IN ('yes', 'designated', 'permissive', 'official', 'destination')
-        OR sidewalk IN ('both', 'left', 'right')
-;
+-- -- Segments where pedestrians are allowed
+-- UPDATE osm_edges_simplified 
+--     SET pedestrian_allowed = 'yes' 
+--         WHERE highway in ('pedestrian', 'path', 'footway', 'steps')
+--         OR foot IN ('yes', 'designated', 'permissive', 'official', 'destination')
+--         OR sidewalk IN ('both', 'left', 'right')
+-- ;
 
-
 UPDATE osm_edges_simplified 
-    SET protected = true
+    SET protected = 'true'
         WHERE 
         geodk_bike = 'Cykelsti langs vej' OR
-        highway == 'cycleway'
-        cycleway IN ('track','opposite_track')
-        cycleway_left IN ('track','opposite_track')
-        cycleway_right IN ('track','opposite_track')
+        highway IN ('cycleway','track','path') OR
+        cycleway IN ('track','opposite_track') OR
+        cycleway_left IN ('track','opposite_track') OR
+        cycleway_right IN ('track','opposite_track') OR 
         cycleway_both IN ('track','opposite_track')
 ;
 
@@ -44,7 +72,7 @@ UPDATE osm_edges_simplified
 UPDATE osm_edges_simplified 
     SET protected = 'mixed'
         WHERE
-        protected = true AND
+        protected = 'true' AND
         geodk_bike = 'Cykelbane langs vej' OR
         bicycle_road = 'yes' OR
         cycleway IN ('lane','opposite_lane','shared_lane','crossing') OR
@@ -55,11 +83,12 @@ UPDATE osm_edges_simplified
 
 
 UPDATE osm_edges_simplified
-    SET protected = false
+    SET protected = 'false'
         WHERE 
         protected IS NULL AND
         geodk_bike = 'Cykelbane langs vej' OR
         bicycle_road = 'yes' OR
+        highway = 'living_street' OR
         cycleway IN ('lane','opposite_lane','shared_lane','crossing') OR
         cycleway_left in ('lane','opposite_lane','shared_lane','crossing') OR
         cycleway_right in ('lane','opposite_lane','shared_lane','crossing') OR
@@ -86,15 +115,15 @@ UPDATE osm_edges_simplified
         OR cycleway_right IN ('lane','track','opposite_lane','opposite_track','shared_lane')
         OR cycleway_both IN ('lane','track','opposite_lane','opposite_track','shared_lane')
         OR highway IN ('path','track') AND bicycle IN ('designated','yes')
-        OR bicycle = 'designated' and motor_vehicle = 'no'
-        OR geodk_bike = 'Cykelsti langs vej';
+        OR bicycle = 'designated' and (motor_vehicle = 'no' OR motorcar = 'no')
+        OR geodk_bike = 'Cykelsti langs vej'
 ;
 
 --Determining whether the segment of cycling infrastructure runs along a street or not
 -- Along a street with car traffic
 UPDATE osm_edges_simplified 
     SET along_street = 'true' 
-        WHERE car_traffic = 'yes' AND cycling_infrastructure_new = 'yes'
+        WHERE car_traffic = 'yes' AND cycling_infra_new = 'yes'
 ;
 
 UPDATE osm_edges_simplified 
@@ -104,24 +133,53 @@ UPDATE osm_edges_simplified
 
 -- Capturing cycleways digitized as individual ways both still running parallel to a street
 CREATE VIEW cycleways AS 
-    (SELECT name, highway, road_type, cycling_infrastructure, along_street FROM osm_edges
+    (SELECT name, highway, cycling_infrastructure, along_street FROM osm_edges_simplified
         WHERE highway = 'cycleway')
 ;
 
 
 CREATE VIEW car_roads AS 
-    (SELECT name, highway, road_type, geom FROM osm_edges
-        WHERE car_traffic = 'yes')
+    (SELECT name, highway, geometry FROM osm_edges_simplified
+        WHERE car_traffic = 'yes' and highway != 'service') -- should it include service?
 ;
 
+-- UPDATE cycleways c SET along_street = 'true'
+--     FROM car_roads cr WHERE c.name = cr.name
+-- ;
 
-UPDATE cycleways c SET along_street = 'true'
-    FROM car_roads cr WHERE c.name = cr.name
+CREATE TABLE buffered_car_roads AS 
+	(SELECT (ST_Dump(geom)).geom FROM 
+        (SELECT ST_Union(ST_Buffer(geometry,30)) AS geom FROM car_roads) cr)
 ;
+
+CREATE INDEX buffer_geom_idx ON buffered_car_roads USING GIST (geom);
+
+CREATE TABLE intersecting_cycle_roads AS 
+(SELECT o.edge_id, o.geometry FROM osm_edges_simplified o, buffered_car_roads br
+WHERE o.cycling_infra_new = 'yes' AND ST_Intersects(o.geometry, br.geom));
+
+CREATE TABLE cycle_infra_points AS
+(SELECT edge_id, ST_Collect( ARRAY[ST_StartPoint(geometry), ST_Centroid(geometry), ST_EndPoint(geometry)]) AS geometry FROM intersecting_cycle_roads);
+
+CREATE INDEX cycle_points_geom_idx ON cycle_infra_points USING GIST (geometry);
+
+CREATE TABLE cycling_cars AS
+(SELECT c.edge_id, c.geometry FROM cycle_infra_points c, buffered_car_roads br
+WHERE ST_CoveredBy(c.geometry, br.geom));
+
+UPDATE osm_edges_simplified o SET along_street = 'true' FROM cycling_cars c 
+WHERE o.edge_id = c.edge_id; 
 
 
 DROP VIEW cycleways;
 DROP VIEW car_roads;
+DROP TABLE buffered_car_roads;
+DROP TABLE cycling_cars;
+DROP TABLE intersecting_cycle_roads;
+DROP TABLE cycle_infra_points;
+
+-- TODO - set along street if completely within a buffer from road of 20 meters
+
 
 
 -- EDGES LEADING TO UNREGULATED INTERSECTIONS
