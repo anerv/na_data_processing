@@ -15,12 +15,12 @@ import pandas as pd
 import json
 from src import db_functions as dbf
 import pickle
-from src import simplification_functions as sf
+from src import simplification_functions_new as sf
+from src import simplification_functions as sfo
 from src import graph_functions as gf
 from timeit import default_timer as timer
 import os.path
 #%%
-
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
 
@@ -47,11 +47,11 @@ extra_attr = ['surface','cycleway:left','cycleway:right','cycleway:both','cyclew
             'cycleway:left:width','cycleway:right:width','cycleway:both:width','bicycle_road','oneway_bicycle','maxspeed'
             'cycleway:surface','cyclestreet','sidewalk','crossing','barrier','bollard','flashing_lights','proposed','construction']
 
-
 #%%
 print('Creating edge and node datasets...')
 nodes, edges = osm.get_network(nodes=True, network_type='all', extra_attributes=extra_attr)
 
+#%%
 # Explode tags dict to get cycleway surface
 edges['temp_id'] = edges.index
 
@@ -66,6 +66,7 @@ attr = expl.join(edges_selection)
 
 edges = edges.merge(attr, on='temp_id', how='left')
 edges.drop('dict',axis=1,inplace=True)
+edges.drop('temp_id', axis=1, inplace=True)
 #edges.rename({'dict':'tags'},inplace=True, axis=1)
 #%%
 # Filter out edges with irrelevant highway types
@@ -83,6 +84,8 @@ print(f'{org_len - new_len} edges where removed')
 node_id_list = list(set(edges.u.to_list() + edges.v.to_list()))
 nodes = nodes.loc[nodes.id.isin(node_id_list)]
 
+# Drop unnecessary cols
+edges.drop(['overtaking', 'psv','ref','int_ref','construction','proposed'], axis=1, inplace=True)
 #%%
 # Create subselection of OSM edges in specific area, to test!
 # xmin = 12.240496
@@ -143,16 +146,31 @@ cycling_infra_dict = ox_edges['cycling_infrastructure'].to_dict()
 nx.set_edge_attributes(G, cycling_infra_dict, 'cycling_infrastructure')
 
 #%%
+# Create new osmnx graph without geometry column (required by simplification function)
+ox_edges.drop('geometry',axis=1, inplace=True)
+ox_edges['cycleway'].fillna('unknown',inplace=True)
+ox_edges['cycleway_right'].fillna('unknown',inplace=True)
+ox_edges['cycleway_left'].fillna('unknown',inplace=True)
+ox_edges['cycleway_both'].fillna('unknown',inplace=True)
+ox_edges['bicycle_road'].fillna('unknown',inplace=True)
+G_ox = ox.graph_from_gdfs(ox_nodes, ox_edges)
+#%%
+# # Simplify graph
+# G_sim = sf.simplify_graph(
+#     G_ox, 
+#     attributes = [
+#         'highway'])
+#%%
 # Simplify grap
-G_sim = sf.momepy_simplify_graph(
-    G, 
+G_sim = sf.simplify_graph(
+    G_ox, 
     attributes = [
         'cycling_infrastructure',
         'highway',
         'cycleway',
-        'cycleway:right',
-        'cycleway:left',
-        'cycleway:both',
+        'cycleway_right',
+        'cycleway_left',
+        'cycleway_both',
         'bicycle_road'])
 
 #%%
@@ -246,23 +264,3 @@ else:
 # TODO: Load traffic lights etc to DB?
 
 #%%
-#G_updated = G.edge_subgraph(ox_edges.index)
-
-# # Update edges based on matches with reference data
-# matches_fp = open('../data/matches.json')
-
-# matches = json.load(matches_fp)
-  
-# final_matches_df = pd.DataFrame.from_dict(matches,orient='index')
-# final_matches_df.rename(columns={0:'way_id'},inplace=True)
-# final_matches_df.reset_index(inplace=True)
-# final_matches_df.rename({'index':ref_id_col},inplace=True,axis=1)
-
-# updated_osm = ox_edges.merge(final_matches_df, left_on='osmid',right_on='way_id',how='left')
-
-
-# matches_id_dict = ox_edges[ref_id_col].to_dict()
-# nx.set_edge_attributes(G, matches_id_dict, 'matches_id')
-
-#,
-        #f"{ref_id_col}.notnull()"
