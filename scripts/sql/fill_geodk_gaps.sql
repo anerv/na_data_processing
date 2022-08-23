@@ -27,7 +27,7 @@ CREATE TABLE matched_nodes AS
 ;
 
 CREATE VIEW matched_names AS
-    SELECT name, vejklasse FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;
+    SELECT name, geodk_bike FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;
 
 CREATE TABLE gaps AS
     SELECT * FROM potential_gaps 
@@ -63,8 +63,23 @@ FROM gaps_connectors g, gaps
 DELETE FROM gaps_joined WHERE gaps_id IS NULL;
 
 UPDATE osm_edges_simplified 
-SET geodk_bike = g.roadclass FROM gaps_joined g WHERE osm_edges_simplified.edge_id = g.gaps_id;
+    SET geodk_bike = g.roadclass 
+        FROM gaps_joined g 
+            WHERE osm_edges_simplified.edge_id = g.gaps_id
+;
 
+UPDATE osm_edges_simplified 
+    SET cycling_infra_new = 'yes' 
+        FROM gaps_joined g 
+            WHERE osm_edges_simplified.edge_id = g.gaps_id
+;
+
+DROP VIEW gaps_nodes;
+DROP VIEW matched_names;
+DROP TABLE gaps_connectors;
+DROP TABLE gaps_joined;
+DROP TABLE gaps;
+DROP TABLE potential_gaps;
 
 -- CREATE TABLE gaps_and_links AS SELECT * FROM gaps
 -- UNION
