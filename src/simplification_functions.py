@@ -989,3 +989,15 @@ def momepy_simplify_graph(G, attributes=None,
     # mark graph as having been simplified
     G.graph["simplified"] = True
     return G
+
+
+def add_geometry_attribute(G):
+    """Add geometry attribute for non-simplified edges"""
+    G = G.copy()
+    for edge in G.edges:
+        if 'geometry' not in G.edges[edge]:
+            f_node = [G.nodes[edge[0]]['x'], G.nodes[edge[0]]['y']]
+            s_node = [G.nodes[edge[1]]['x'], G.nodes[edge[1]]['y']]
+            G.edges[edge]['geometry'] = LineString([Point(*f_node),
+                                                   Point(*s_node)])
+    return G

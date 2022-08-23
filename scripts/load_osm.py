@@ -15,8 +15,7 @@ import pandas as pd
 import json
 from src import db_functions as dbf
 import pickle
-from src import simplification_functions_new as sf
-from src import simplification_functions as sfo
+from src import simplification_functions as sf
 from src import graph_functions as gf
 from timeit import default_timer as timer
 import os.path
