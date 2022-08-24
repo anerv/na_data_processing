@@ -1,16 +1,35 @@
--- first fix load osm so node attributes are included!
+-- IDENTIFY INTERSECTION NODES
+CREATE TABLE node_occurences AS
+SELECT u FROM osm_edges_simplified
+UNION ALL 
+SELECT v FROM osm_edges_simplified;
 
--- classify all nodes that are intersections -- all of them?
+CREATE VIEW node_degrees AS SELECT u, COUNT(*) FROM node_occurences GROUP BY u;
+
+CREATE TABLE intersections AS SELECT * FROM node_degrees WHERE count > 2;
+
+ALTER TABLE intersections ADD COLUMN geometry geometry(Point,25832);
+
+UPDATE intersections i SET geometry = o.geometry FROM osm_nodes_simplified o WHERE i.u = o.osmid;
 
 
--- 'crossing',,'bollard','flashing_lights
+-- CLASSIFY INTERSECTIONS
+ALTER TABLE intersection_tags ADD COLUMN inter_type VARCHAR DEFAULT NULL;
+
+UPDATE intersection_tags SET inter_type = 'unregulated' 
+    WHERE highway NOT IN ('traffic_signals','crossing') 
+    AND crossing IN ('uncontrolled','unmarked');
+
+UPDATE intersection_tags SET inter_type = 'marked' WHERE 
+    crossing IN ('marked','zebra','island') OR
+
+UPDATE intersection_tags SET inter_type = 'regulated' 
+    WHERE crossing = 'traffic_signals' OR highway = 'traffic_signals';
 
 
-write query that finds all nodes that are not start/end points - mark them as intersections
-# Nodes with degrees more than 2?
 
-
-# Classify intersections as signalled/controlled or not
+-- JOIN TO OSM graph intersections
+-- SET OTHERS TO unregulated or unknown?
 
 -- regulated intersections
 crossing=traffic_signals
@@ -30,8 +49,3 @@ and highway != traffic_signals
 -- unregulated intersections
 crossing=unmarked
 -- and all the remaining?
-
--- unsafe intersections
--- intersections involving highways above a certain class
--- select all high stress streets (regardless of cycling infra)
--- get their end node - if it is marked as unregulated - bad bad - if just marked - also a bit bad
