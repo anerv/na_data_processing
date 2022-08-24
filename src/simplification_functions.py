@@ -919,7 +919,7 @@ def momepy_simplify_graph(G, attributes=None,
 
             # get edge between these nodes: if multiple edges exist between
             # them (see above), we retain only one in the simplified graph
-            edge_data = G.edges[u, v, 0]
+            edge_data = G.edges[u, v, 0] # TODO: This is where the error happens with disappearing edges? To debug - confirm that one of them has key 1
             geometry_batch.append(edge_data['geometry'])
             for attr in edge_data:
                 if attr == 'geometry':
