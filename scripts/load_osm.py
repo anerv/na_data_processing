@@ -128,8 +128,8 @@ queries = ["highway == 'cycleway'",
         "cycleway_right in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
         "cycleway_both in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
         "bicycle_road == 'yes'",
+        "cyclestreet == 'yes'",
         "highway == 'track' & bicycle in ['designated','yes']",
-        "highway == 'service' & (bicycle == 'designated' or motor_vehicle == 'no' or motorcar == 'no')",
         "highway == 'path' & bicycle in ['designated','yes']" 
         ]
 
@@ -158,6 +158,9 @@ ox_edges['bicycle_road'].fillna('unknown',inplace=True)
 ox_edges['maxspeed'].fillna('unknown',inplace=True)
 ox_edges['lit'].fillna('unknown',inplace=True)
 ox_edges['surface'].fillna('unknown',inplace=True)
+ox_edges['bicycle'].fillna('unknown',inplace=True)
+ox_edges['cyclestreet'].fillna('unknown',inplace=True)
+
 
 G_ox = ox.graph_from_gdfs(ox_nodes, ox_edges)
 #%%
@@ -180,7 +183,9 @@ G_sim = sf.simplify_graph(
         'bicycle_road',
         'maxspeed',
         'lit',
-        'surface'])
+        'surface',
+        'bicycle',
+        'cyclestreet'])
 
 #%%
 # Get undirected
