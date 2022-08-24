@@ -1,51 +1,48 @@
 -- IDENTIFY INTERSECTION NODES
 CREATE TABLE node_occurences AS
-SELECT u FROM osm_edges_simplified
+SELECT u AS osmid FROM osm_edges_simplified as osmid
 UNION ALL 
 SELECT v FROM osm_edges_simplified;
 
-CREATE VIEW node_degrees AS SELECT u, COUNT(*) FROM node_occurences GROUP BY u;
+CREATE VIEW node_degrees AS SELECT osmid, COUNT(*) FROM node_occurences GROUP BY osmid;
 
 CREATE TABLE intersections AS SELECT * FROM node_degrees WHERE count > 2;
 
 ALTER TABLE intersections ADD COLUMN geometry geometry(Point,25832);
 
-UPDATE intersections i SET geometry = o.geometry FROM osm_nodes_simplified o WHERE i.u = o.osmid;
+UPDATE intersections i SET geometry = o.geometry FROM osm_nodes_simplified o WHERE i.osmid = o.osmid;
 
 
 -- CLASSIFY INTERSECTIONS
 ALTER TABLE intersection_tags ADD COLUMN inter_type VARCHAR DEFAULT NULL;
 
-UPDATE intersection_tags SET inter_type = 'unregulated' 
-    WHERE highway NOT IN ('traffic_signals','crossing') 
-    AND crossing IN ('uncontrolled','unmarked');
+UPDATE intersection_tags SET inter_type = 'unregulated' WHERE 
+    (highway NOT IN ('traffic_signals') OR highway IS NULL) AND (crossing IN ('uncontrolled','unmarked') OR crossing IS NULL)
+    OR (highway NOT IN ('traffic_signals') OR highway IS NULL) AND (crossing NOT IN ('zebra','marked','controlled','traffic_signals') OR crossing IS NULL)
+;
 
 UPDATE intersection_tags SET inter_type = 'marked' WHERE 
     crossing IN ('marked','zebra','island') OR
+    'crossing:island' IN ('yes');
+    --OR flashing_lights IN ('yes','sensor','button','always');
 
 UPDATE intersection_tags SET inter_type = 'regulated' 
     WHERE crossing = 'traffic_signals' OR highway = 'traffic_signals';
 
 
+ALTER TABLE intersections ADD COLUMN inter_type VARCHAR DEFAULT NULL;
+UPDATE intersections i SET inter_type = it.inter_type FROM intersection_tags it WHERE i.osmid = it.id;
 
--- JOIN TO OSM graph intersections
--- SET OTHERS TO unregulated or unknown?
 
--- regulated intersections
-crossing=traffic_signals
-highway = traffic_signals
+CREATE VIEW unmatched_inter_tags AS 
+    SELECT * FROM intersection_tags it WHERE NOT EXISTS(
+        SELECT FROM intersections i WHERE i.osmid = it.id
+    )
+;
 
--- are there any nodes just tagged as highway = crossing??
+-- TODO
+-- Snap them to the nearest intersection
 
--- marked intersections
-crossing = uncontrolled
-crossing = marked
-crossing = zebra
-crossing = island
-crossing:island = 'yes'
-flashing_lights in ('yes','sensor','button','always',)
-and highway != traffic_signals
 
--- unregulated intersections
-crossing=unmarked
--- and all the remaining?
+DROP VIEW unmatched_inter_tags;
+DROp VIEW node_degrees;

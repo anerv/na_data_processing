@@ -6,16 +6,11 @@ Classify intersection tags as uncontrolled/uncontrolled
 #%%
 import pyrosm
 import yaml
-import osmnx as ox
-import networkx as nx
 import pandas as pd
 import json
 from src import db_functions as dbf
 import pickle
-from src import simplification_functions as sf
-from src import graph_functions as gf
-from timeit import default_timer as timer
-import os.path
+
 #%%
 with open(r'config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
@@ -39,12 +34,12 @@ print('Settings loaded!')
 #%%
 osm = pyrosm.OSM(osm_fp)
 
-extra_attr = ['crossing','crossing:island','flashing_lights','proposed','construction','traffic_signals']
+extra_attr = ['crossing','crossing:island','flashing_lights','traffic_signals']
 
 custom_filter = {
-    'highway': ['traffic_signals'],
+    'highway': ['traffic_signals','crossing'],
     'crossing': ['crossing','controlled','uncontrolled','marked','unmarked','traffic_signals','zebra','islands'],
-    'crossing:island': ['yes','marked','uncontrolled','traffic_signals','zebra','unmarked'],
+    'crossing:island': ['yes'],
     'flashing_lights': ['yes','sensor','button','always'],
     'traffic_signals': ['yes']
     }
@@ -55,6 +50,7 @@ intersections = osm.get_data_by_custom_criteria(
     extra_attributes=extra_attr
     )
 
+#%%
 # Drop those that are not nodes
 intersections = intersections.loc[intersections.osm_type=='node']
 
@@ -89,7 +85,7 @@ else:
 
 
 # Get rid of unnecessary columns
-useful_colums = ['highway','geometry','traffic_signals','crossing','crossing:island','flashing_lights','proposed','construction','bicycle']
+useful_colums = ['id','highway','geometry','traffic_signals','crossing','crossing:island','flashing_lights','proposed','construction','bicycle']
 useful_colums = [c for c in useful_colums if c in intersections.columns]
 intersections = intersections[useful_colums]
 
