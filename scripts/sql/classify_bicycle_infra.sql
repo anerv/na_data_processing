@@ -1,11 +1,11 @@
--- For all edges where cycling is allowed, I want to know
--- if there is cycling infra (yes, no) DONE
--- if the cycling infra is protected (yes, no)
--- if you are cycling in mixed traffic (for all edges)
--- if cycling infra is along a street
--- if there are lights (yes, no)
--- the speed limit
--- what type of intersections we have
+-- Determine for all edges whether:
+-- - cycling is allowed
+-- - cycling infrastructure is protected
+-- - cyclists are in mixed traffic (bike separated)
+-- - there is car traffic 
+-- - it is along a street 
+-- - which municipality it is in
+
 
 ALTER TABLE osm_edges_simplified
     ADD COLUMN cycling_allowed VARCHAR DEFAULT NULL,
@@ -215,77 +215,3 @@ DROP TABLE cycle_infra_points;
 
 UPDATE osm_edges_simplified o SET muni = m.navn FROM muni_boundaries m WHERE ST_Intersects(o.geometry, m.geometry); 
 
--- TODO - set along street if completely within a buffer from road of 20 meters
-
-
-
--- EDGES LEADING TO UNREGULATED INTERSECTIONS
-
--- UPDATE TABLE osm_edges
---     SET COLUMN cycling_infrastructure = true
---     WHERE         
---         highway = 'cycleway' OR
---         highway = 'living_street' OR
---         cycleway IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         cycleway_left IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR 
---         cycleway_right IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         cycleway_both IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         highway = 'track' AND bicycle IN ('designated','yes') OR
---         highway = 'service' AND (bicycle = 'designated' or motor_vehicle ='no') OR
---         highway = 'path' AND bicycle IN ('designated','yes') OR
---         --cyclestreet = 'yes' OR
---         bicycle_road = 'yes'
--- ;
-
--- UPDATE osm_edges_simplified
---     SET cycling_infrastructure = 'yes'
---     WHERE         
---         highway = 'cycleway' OR
---         highway = 'living_street' OR
---         cycleway IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         cycleway_left IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR 
---         cycleway_right IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         cycleway_both IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         highway = 'track' AND bicycle IN ('designated','yes') OR
---         highway = 'service' AND (bicycle = 'designated' or motor_vehicle ='no') OR
---         highway = 'path' AND bicycle IN ('designated','yes') OR
---         --cyclestreet = 'yes' OR
---         bicycle_road = 'yes'
--- ;
-
--- ALTER TABLE vm_brudt
---     ADD COLUMN cycling_infrastructure VARCHAR DEFAULT NULL
--- ;
--- UPDATE TABLE vm_brudt
---     SET COLUMN cycling_infrastructure = true
---     WHERE vejklasse IN ('Cykelbane langs vej', 'Cykelsti langs vej')
--- ;
-
--- DROP TABLE IF EXISTS geodk_bike_simple;
--- CREATE TABLE geodk_bike_simple AS
---     SELECT * FROM vm_brudt_simple WHERE vejklasse IN ('Cykelbane langs vej', 'Cykelsti langs vej')
--- ;
-
--- DROP TABLE IF EXISTS osm_bike;
--- CREATE TABLE osm_bike AS
---     SELECT * FROM osm_edges WHERE 
---         highway = 'cycleway' OR
---         highway = 'living_street' OR
---         cycleway IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         cycleway_left IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR 
---         cycleway_right IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         cycleway_both IN ('lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway') OR
---         highway = 'track' AND bicycle IN ('designated','yes') OR
---         highway = 'service' AND (bicycle = 'designated' or motor_vehicle ='no') OR
---         highway = 'path' AND bicycle IN ('designated','yes') OR
---         --cyclestreet = 'yes' OR
---         bicycle_road = 'yes'
--- ;
-
--- DROP TABLE IF EXISTS osm_no_bike;
--- CREATE TABLE osm_no_bike AS
---     SELECT * FROM osm_edges WHERE NOT EXISTS (
---         SELECT * FROM osm_bike where osm_bike.osmid = osm_edges.osmid
--- );
-
--- DELETE FROM osm_no_bike WHERE bicycle = 'use_sidepath';
