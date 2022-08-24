@@ -1,9 +1,10 @@
 '''
-The purpose of this script is to
+The purpose of this script is to:
 1) Convert OSM data to a graph format. This step is using pyrosm which has been optimized for loading OSM data from pbf files for large areas
 2) Load the resulting data to a PostGIS database or alternatively to disk file.
 
-Requires a postgres db with postgis extension activated if the postgres option is used!
+Requires a postgresql db with postgis extension activated, if the postgres option is used!
+
 '''
 
 #%%
@@ -85,17 +86,7 @@ nodes = nodes.loc[nodes.id.isin(node_id_list)]
 
 # Drop unnecessary cols
 edges.drop(['overtaking', 'psv','ref','int_ref','construction','proposed'], axis=1, inplace=True)
-#%%
-# Create subselection of OSM edges in specific area, to test!
-# xmin = 12.240496
-# ymin = 55.617982
-# xmax = 12.591587
-# ymax = 55.750171
 
-# edges_subset = edges.cx[xmin:xmax, ymin:ymax]
-
-# node_subset_list = list(set(edges_subset.u.to_list() + edges_subset.v.to_list()))
-# nodes_subset = nodes.loc[nodes.id.isin(node_subset_list)]
 #%%
 # Create networkx graph
 start = timer()
@@ -275,6 +266,4 @@ else:
         pickle.dump(ox_nodes_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
 #%%
 #%%
-# TODO: Load traffic lights etc to DB?
 
-#%%

@@ -21,7 +21,3 @@ UPDATE osm_edges_simplified
         WHERE bicycle = 'no' 
 ;
 
--- UPDATE osm_edges_simplified 
---     SET cycling_infra_new = 'no'
---         WHERE highway = 'service' -- Service connectors tends to be misclassified
--- ;

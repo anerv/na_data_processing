@@ -60,7 +60,7 @@ dbf.to_postgis(grid, 'grid', engine)
 
 #%%
 
-q1 = 'SELECT osmid, highway FROM osm_edges LIMIT 10;'
+q1 = 'SELECT navn, kommunekode FROM muni_boundaries LIMIT 10;'
 
 test1 = dbf.run_query_pg(q1, connection)
 
