@@ -13,6 +13,7 @@ ALTER TABLE osm_edges_simplified
     ADD COLUMN car_traffic VARCHAR DEFAULT NULL,
     ADD COLUMN bike_separated VARCHAR DEFAULT NULL,
     ADD COLUMN along_street VARCHAR DEFAULT NULL
+    ADD COLUMN muni VARCHAR DEFAULT NULL
 ;
 
 UPDATE osm_edges_simplified SET maxspeed = NULL WHERE maxspeed = 'unknown';
@@ -210,6 +211,9 @@ DROP TABLE buffered_car_roads;
 DROP TABLE cycling_cars;
 DROP TABLE intersecting_cycle_roads;
 DROP TABLE cycle_infra_points;
+
+
+UPDATE osm_edges_simplified o SET muni = m.navn FROM muni_boundaries m WHERE ST_Intersects(o.geometry, m.geometry); 
 
 -- TODO - set along street if completely within a buffer from road of 20 meters
 
