@@ -50,7 +50,7 @@ bb = osm_edges_simplified.unary_union.bounds
 geodk = geodk.cx[bb[0]:bb[2],bb[1]:bb[3]]
 
 #osm_edges_simplified = osm_edges_simplified.loc[osm_edges_simplified.highway != 'service'] # Do not include service in matching process
-osm_edges_simplified = osm_edges_simplified.loc[~osm_edges_simplified.highway.isin(['service','footway'])] # Do not include service or footways in matching process
+osm_edges_simplified = osm_edges_simplified.loc[~osm_edges_simplified.highway.isin(['footway'])] # Do not include service or footways in matching process
 
 #%%
 # Create segments
@@ -291,14 +291,17 @@ if use_postgres:
         q = "SELECT COUNT (*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;"
         count1 = dbf.run_query_pg(q, connection)[0][0]
 
+        #connection = dbf.connect_pg(db_name, db_user, db_password)
+
         q = 'sql/fill_geodk_gaps.sql'
+
         gaps = dbf.run_query_pg(q, connection)
 
-        connection = dbf.connect_pg(db_name, db_user, db_password)[0][0]
+        connection = dbf.connect_pg(db_name, db_user, db_password)
 
         q = "SELECT COUNT (*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;"
 
-        count2 = dbf.run_query_pg(q, connection)
+        count2 = dbf.run_query_pg(q, connection)[0][0]
 
         print(f'{count2-count1} gaps where closed!')
 
