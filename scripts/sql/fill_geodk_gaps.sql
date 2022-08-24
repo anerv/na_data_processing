@@ -76,6 +76,7 @@ UPDATE osm_edges_simplified
 
 DROP VIEW gaps_nodes;
 DROP VIEW matched_names;
+DROP TABLE matched_nodes;
 DROP TABLE gaps_connectors;
 DROP TABLE gaps_joined;
 DROP TABLE gaps;
