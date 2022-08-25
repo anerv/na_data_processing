@@ -122,7 +122,6 @@ else:
 #%%
 if use_postgres:
 
-# TODO: SQL for classifying crossing/intersection types
     print('Classifying intersection nodes!')
 
     connection = dbf.connect_pg(db_name, db_user, db_password)
@@ -140,3 +139,4 @@ if use_postgres:
     print(test)
 
     connection.close()
+#%%

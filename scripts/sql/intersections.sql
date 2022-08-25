@@ -34,15 +34,26 @@ ALTER TABLE intersections ADD COLUMN inter_type VARCHAR DEFAULT NULL;
 UPDATE intersections i SET inter_type = it.inter_type FROM intersection_tags it WHERE i.osmid = it.id;
 
 
-CREATE VIEW unmatched_inter_tags AS 
-    SELECT * FROM intersection_tags it WHERE NOT EXISTS(
+CREATE MATERIALIZED VIEW unmatched_inter_tags AS 
+    SELECT * FROM intersection_tags it WHERE NOT EXISTS
+    (
         SELECT FROM intersections i WHERE i.osmid = it.id
     )
 ;
 
--- TODO
--- Snap them to the nearest intersection
+CREATE INDEX un_geom_idx ON unmatched_inter_tags USING GIST (geometry);
+CREATE INDEX inter_geom_idx ON intersections USING GIST (geometry);
 
 
-DROP VIEW unmatched_inter_tags;
-DROp VIEW node_degrees;
+CREATE VIEW matched_intersections AS
+    (SELECT un.id, i.osmid, un.inter_type, un.geometry FROM unmatched_inter_tags AS un
+        CROSS JOIN LATERAL ( SELECT osmid FROM intersections
+            ORDER BY geometry <-> un.geometry LIMIT  1) AS i
+    )
+;
+
+UPDATE intersections i SET inter_type = mi.inter_type FROM matched_intersections mi WHERE i.osmid = mi.osmid;
+
+DROP VIEW node_degrees;
+DROP VIEW matched_intersections;
+DROP MATERIALIZED VIEW unmatched_inter_tags;
