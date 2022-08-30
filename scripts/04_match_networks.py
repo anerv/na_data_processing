@@ -10,10 +10,8 @@ from src import matching_functions as mf
 from src import db_functions as dbf
 from timeit import default_timer as timer
 
-with open(r'config.yml') as file:
+with open(r'../config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
-
-    use_postgres = parsed_yaml_file['use_postgres']
 
     osm_fp = parsed_yaml_file['osm_fp']
 
@@ -131,7 +129,6 @@ matches_fp = f'../data/segment_matches_unmatched.pickle'
 with open(matches_fp, 'wb') as f:
         pickle.dump(segment_matches_unmatched, f)
 
-
 # Summarize to feature matches
 osm_matched_ids_2, osm_undec_2 = mf.summarize_feature_matches(osm_segments_no_bike, segment_matches_unmatched,'seg_id','osmid',osm=True)
 osm_edges_simplified.loc[osm_edges_simplified.edge_id.isin(osm_matched_ids_2)].plot();
@@ -186,124 +183,119 @@ updated_osm_overflade = mf.update_osm(osm_segments, osm_edges_simplified, segmen
 matched_osm_vejklasse = updated_osm_vejklasse[['edge_id','vejklasse']]
 matched_osm_overflade = updated_osm_overflade[['edge_id','overflade']]
 
-if use_postgres:
 
-        print('Saving data to PostgreSQL!')
+print('Saving data to PostgreSQL!')
 
-        connection = dbf.connect_pg(db_name, db_user, db_password)
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-        engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-        drop_table = 'DROP TABLE IF EXISTS osm_matches_roadclass;'
-        create_table = 'CREATE TABLE osm_matches_roadclass (edge_id VARCHAR, vejklasse VARCHAR);'
+drop_table = 'DROP TABLE IF EXISTS osm_matches_roadclass;'
+create_table = 'CREATE TABLE osm_matches_roadclass (edge_id VARCHAR, vejklasse VARCHAR);'
 
-        run_drop_table = dbf.run_query_alc(drop_table, engine)
-        run_create_table = dbf.run_query_alc(create_table, engine)
+run_drop_table = dbf.run_query_alc(drop_table, engine)
+run_create_table = dbf.run_query_alc(create_table, engine)
 
-        matched_osm_vejklasse.to_sql(name='osm_matches_roadclass',con=engine, if_exists='replace')
+matched_osm_vejklasse.to_sql(name='osm_matches_roadclass',con=engine, if_exists='replace')
 
-        q = 'SELECT edge_id, vejklasse FROM osm_matches_roadclass LIMIT 10;'
+q = 'SELECT edge_id, vejklasse FROM osm_matches_roadclass LIMIT 10;'
 
-        test = dbf.run_query_pg(q, connection)
+test = dbf.run_query_pg(q, connection)
 
-        print(test)
+print(test)
 
-        drop_table = 'DROP TABLE IF EXISTS osm_matches_surface;'
-        create_table = 'CREATE TABLE osm_matches_surface (edge_id VARCHAR, overflade VARCHAR);'
+drop_table = 'DROP TABLE IF EXISTS osm_matches_surface;'
+create_table = 'CREATE TABLE osm_matches_surface (edge_id VARCHAR, overflade VARCHAR);'
 
-        run_drop_table = dbf.run_query_alc(drop_table, engine)
-        run_create_table = dbf.run_query_alc(create_table, engine)
+run_drop_table = dbf.run_query_alc(drop_table, engine)
+run_create_table = dbf.run_query_alc(create_table, engine)
 
-        matched_osm_overflade.to_sql(name='osm_matches_surface',con=engine, if_exists='replace')
+matched_osm_overflade.to_sql(name='osm_matches_surface',con=engine, if_exists='replace')
 
-        q = 'SELECT edge_id, overflade FROM osm_matches_surface LIMIT 10;'
+q = 'SELECT edge_id, overflade FROM osm_matches_surface LIMIT 10;'
 
-        test = dbf.run_query_pg(q, connection)
+test = dbf.run_query_pg(q, connection)
 
-        print(test)
-else:
-        print('Saving data to file!')
+print(test)
 
-        matched_osm_vejklasse.set_index('edge_id',inplace=True)
-        matched_osm_roadclass_dict = matched_osm_vejklasse.to_dict('index')
+print('Saving data to file!')
 
-        with open('../results/matched_osm_roadclass', 'w') as fp:
-                json.dump(matched_osm_roadclass_dict, fp)
+matched_osm_vejklasse.set_index('edge_id',inplace=True)
+matched_osm_roadclass_dict = matched_osm_vejklasse.to_dict('index')
 
-        matched_osm_overflade.set_index('edge_id',inplace=True)
-        matched_osm_overflade_dict = matched_osm_vejklasse.to_dict('index')
+with open('../results/matched_osm_roadclass', 'w') as fp:
+        json.dump(matched_osm_roadclass_dict, fp)
 
-        with open('../results/matched_osm_surface', 'w') as fp:
-                json.dump(matched_osm_overflade_dict, fp)
+matched_osm_overflade.set_index('edge_id',inplace=True)
+matched_osm_overflade_dict = matched_osm_vejklasse.to_dict('index')
 
-#%%
-
-if use_postgres:
-
-    print('Combining OSM and updated data!')
-
-    connection = dbf.connect_pg(db_name, db_user, db_password)
-
-    engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
-
-    q = 'sql/merge_matched_osm.sql'
-
-    merge = dbf.run_query_pg(q, connection)
-
-    connection = dbf.connect_pg(db_name, db_user, db_password)
-
-    q = 'SELECT edge_id, geodk_bike FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL LIMIT 10;'
-
-    test = dbf.run_query_pg(q, connection)
-
-    print(test)
-
-    q = 'SELECT COUNT(*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;'
-
-    connection = dbf.connect_pg(db_name, db_user, db_password)
-
-    test = dbf.run_query_pg(q, connection)
-
-    print(f'{test[0][0]} edges have information from being matched with geodk bike!')
-    
-    q1 = "SELECT COUNT(*) FROM osm_edges_simplified WHERE cycling_infrastructure = 'yes';"
-    q2 = "SELECT COUNT(*) FROM osm_edges_simplified WHERE cycling_infra_new = 'yes';"
-
-    connection = dbf.connect_pg(db_name, db_user, db_password)
-
-    count1 = dbf.run_query_pg(q1, connection)[0][0]
-    count2 = dbf.run_query_pg(q2, connection)[0][0]
-
-    print(f'{count2-count1} new edges are marked as cycling infrastructure!')
-
-    connection.close()
+with open('../results/matched_osm_surface', 'w') as fp:
+        json.dump(matched_osm_overflade_dict, fp)
 
 #%%
 
-if use_postgres:
+print('Combining OSM and updated data!')
 
-        print('Fixing geodk gaps...')
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-        connection = dbf.connect_pg(db_name, db_user, db_password)
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-        engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+q = 'sql/merge_matched_osm.sql'
 
-        q = "SELECT COUNT (*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;"
-        count1 = dbf.run_query_pg(q, connection)[0][0]
+merge = dbf.run_query_pg(q, connection)
 
-        #connection = dbf.connect_pg(db_name, db_user, db_password)
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-        q = 'sql/fill_geodk_gaps.sql'
+q = 'SELECT edge_id, geodk_bike FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL LIMIT 10;'
 
-        gaps = dbf.run_query_pg(q, connection)
+test = dbf.run_query_pg(q, connection)
 
-        connection = dbf.connect_pg(db_name, db_user, db_password)
+print(test)
 
-        q = "SELECT COUNT (*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;"
+q = 'SELECT COUNT(*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;'
 
-        count2 = dbf.run_query_pg(q, connection)[0][0]
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-        print(f'{count2-count1} gaps where closed!')
+test = dbf.run_query_pg(q, connection)
+
+print(f'{test[0][0]} edges have information from being matched with geodk bike!')
+
+q1 = "SELECT COUNT(*) FROM osm_edges_simplified WHERE cycling_infrastructure = 'yes';"
+q2 = "SELECT COUNT(*) FROM osm_edges_simplified WHERE cycling_infra_new = 'yes';"
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+count1 = dbf.run_query_pg(q1, connection)[0][0]
+count2 = dbf.run_query_pg(q2, connection)[0][0]
+
+print(f'{count2-count1} new edges are marked as cycling infrastructure!')
+
+connection.close()
+
+#%%
+
+print('Fixing geodk gaps...')
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+
+q = "SELECT COUNT (*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;"
+count1 = dbf.run_query_pg(q, connection)[0][0]
+
+#connection = dbf.connect_pg(db_name, db_user, db_password)
+
+q = 'sql/fill_geodk_gaps.sql'
+
+gaps = dbf.run_query_pg(q, connection)
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+q = "SELECT COUNT (*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;"
+
+count2 = dbf.run_query_pg(q, connection)[0][0]
+
+print(f'{count2-count1} gaps where closed!')
 
 # %%
 
