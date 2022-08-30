@@ -6,6 +6,38 @@ from shapely.geometry import MultiLineString
 import momepy 
 import osmnx as ox
 
+
+def update_edge_data(G, attr, org_value, new_value, di=True):
+
+    '''
+    Function for updating the edge data values for a networkx graph based on existing edge data value.
+    For digraphs, only edges with key 0 are updated (it is assumed that the graph will be converted to undirected later on)
+    Updates graph in place!
+
+    Argumets:
+        G (networkx graph): graph which edge data will be updated
+        attr (str): name of edge attribute to update
+        org_value (undefined): original value of edge attribute. Used to find edges to update
+        new_value (undefined): new value
+        di(boolean): whether the graph is a digraph or not (influences how the graph edge data is accessed)
+
+    Returns
+    -------
+    None 
+    '''
+
+    if di:
+        for n1, n2, d in G.edges(data=True):
+            if d[attr] == org_value:
+                G[n1][n2][0][attr] = new_value
+
+    else:
+        for n1, n2, d in G.edges(data=True):
+            if d[attr] == org_value:
+                G[n1][n2][attr] = new_value
+
+    return None
+
 def clean_col_names(df):
 
     '''
