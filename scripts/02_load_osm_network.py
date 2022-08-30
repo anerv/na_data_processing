@@ -100,42 +100,6 @@ with open('../data/osm_pyrosm_graph', 'wb') as handle:
     pickle.dump(G, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 #%%
-# # Convert to edge and nodes gdf with index format used by osmnx
-# ox_nodes, ox_edges = ox.graph_to_gdfs(G, nodes=False)
-
-#%%
-# # Add attribute on whether cycling infra exist or not (to be used by e.g. simplification function)
-# ox_edges = gf.clean_col_names(ox_edges)
-# #ox_nodes = gf.clean_col_names(ox_nodes)
-
-# ox_edges['cycling_infrastructure'] = 'no'
-
-# queries = ["highway == 'cycleway'",
-#         "highway == 'living_street'",
-#         "cycleway in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane','shared_lane;shared']",
-#         "cycleway_left in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
-#         "cycleway_right in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
-#         "cycleway_both in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
-#         "bicycle_road == 'yes'",
-#         "cyclestreet == 'yes'",
-#         "highway == 'track' & bicycle in ['designated','yes']",
-#         "highway == 'path' & bicycle in ['designated','yes']" 
-#         ]
-
-# for q in queries:
-#     ox_filtered = ox_edges.query(q)
-
-#     ox_edges.loc[ox_filtered.index, 'cycling_infrastructure'] = 'yes'
-
-# ox_edges.loc[ox_edges.index[ox_edges['bicycle'].isin(['no','dismount'])],'cycling_infrastructure'] = 'no'
-
-# ox_edges.cycling_infrastructure.value_counts()
-
-# # Save data to graph
-# cycling_infra_dict = ox_edges['cycling_infrastructure'].to_dict()
-# nx.set_edge_attributes(G, cycling_infra_dict, 'cycling_infrastructure')
-
-#%%
 # Remove geometry attribute (required by simplification function)
 for n1, n2, d in G.edges(data=True):
         d.pop('geometry', None)
@@ -227,7 +191,7 @@ dbf.to_postgis(geodataframe=ox_edges_s, table_name='osm_edges_simplified', engin
 
 dbf.to_postgis(ox_nodes_s, 'osm_nodes_simplified', engine)
 
-q = 'SELECT osmid, name, highway FROM osm_edges LIMIT 10;'
+q = 'SELECT edge_id, name, highway FROM osm_edges_simplified LIMIT 10;'
 
 test = dbf.run_query_pg(q, connection)
 
@@ -243,6 +207,8 @@ connection = dbf.connect_pg(db_name, db_user, db_password)
 q = 'sql/define_cycling_infra_osm.sql'
 
 cycling_infra = dbf.run_query_pg(q, connection)
+
+q = 'SELECT name, highway, cycling_infrastructure from osm_edges_simplified LIMIT 10;'
 
 #%%
 print('Saving data to file!')
@@ -262,5 +228,3 @@ with open('../data/osm_edges_sim.pickle', 'wb') as handle:
 with open('../data/osm_nodes_sim.pickle', 'wb') as handle:
     pickle.dump(ox_nodes_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
 #%%
-#%%
-
