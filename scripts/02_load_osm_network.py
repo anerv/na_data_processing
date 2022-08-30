@@ -4,7 +4,6 @@ The purpose of this script is to:
 2) Load the resulting data to a PostGIS database or alternatively to disk file.
 
 Requires a postgresql db with postgis extension activated, if the postgres option is used!
-
 '''
 
 #%%
@@ -21,10 +20,9 @@ from src import graph_functions as gf
 from timeit import default_timer as timer
 import os.path
 #%%
-with open(r'config.yml') as file:
-    parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
+with open(r'../config.yml') as file:
 
-    use_postgres = parsed_yaml_file['use_postgres']
+    parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
 
     osm_fp = parsed_yaml_file['osm_fp']
 
@@ -102,86 +100,79 @@ with open('../data/osm_pyrosm_graph', 'wb') as handle:
     pickle.dump(G, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 #%%
-# Convert to index format used by osmnx
-ox_nodes, ox_edges = ox.graph_to_gdfs(G)
+# # Convert to edge and nodes gdf with index format used by osmnx
+# ox_nodes, ox_edges = ox.graph_to_gdfs(G, nodes=False)
 
 #%%
-# Add attribute on whether cycling infra exist or not (to be used by e.g. simplification function)
-ox_edges = gf.clean_col_names(ox_edges)
-ox_nodes = gf.clean_col_names(ox_nodes)
+# # Add attribute on whether cycling infra exist or not (to be used by e.g. simplification function)
+# ox_edges = gf.clean_col_names(ox_edges)
+# #ox_nodes = gf.clean_col_names(ox_nodes)
 
-ox_edges['cycling_infrastructure'] = 'no'
+# ox_edges['cycling_infrastructure'] = 'no'
 
-queries = ["highway == 'cycleway'",
-        "highway == 'living_street'",
-        "cycleway in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane','shared_lane;shared']",
-        "cycleway_left in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
-        "cycleway_right in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
-        "cycleway_both in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
-        "bicycle_road == 'yes'",
-        "cyclestreet == 'yes'",
-        "highway == 'track' & bicycle in ['designated','yes']",
-        "highway == 'path' & bicycle in ['designated','yes']" 
-        ]
+# queries = ["highway == 'cycleway'",
+#         "highway == 'living_street'",
+#         "cycleway in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane','shared_lane;shared']",
+#         "cycleway_left in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
+#         "cycleway_right in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
+#         "cycleway_both in ['lane','track','opposite_lane','opposite_track','shared_lane','designated','crossing','share_busway','shared_lane']",
+#         "bicycle_road == 'yes'",
+#         "cyclestreet == 'yes'",
+#         "highway == 'track' & bicycle in ['designated','yes']",
+#         "highway == 'path' & bicycle in ['designated','yes']" 
+#         ]
 
-for q in queries:
-    ox_filtered = ox_edges.query(q)
+# for q in queries:
+#     ox_filtered = ox_edges.query(q)
 
-    ox_edges.loc[ox_filtered.index, 'cycling_infrastructure'] = 'yes'
+#     ox_edges.loc[ox_filtered.index, 'cycling_infrastructure'] = 'yes'
 
+# ox_edges.loc[ox_edges.index[ox_edges['bicycle'].isin(['no','dismount'])],'cycling_infrastructure'] = 'no'
 
-ox_edges.loc[ox_edges.index[ox_edges['bicycle'].isin(['no','dismount'])],'cycling_infrastructure'] = 'no'
+# ox_edges.cycling_infrastructure.value_counts()
 
-ox_edges.cycling_infrastructure.value_counts()
-
-# Save data to graph
-cycling_infra_dict = ox_edges['cycling_infrastructure'].to_dict()
-nx.set_edge_attributes(G, cycling_infra_dict, 'cycling_infrastructure')
+# # Save data to graph
+# cycling_infra_dict = ox_edges['cycling_infrastructure'].to_dict()
+# nx.set_edge_attributes(G, cycling_infra_dict, 'cycling_infrastructure')
 
 #%%
-# Create new osmnx graph without geometry column (required by simplification function)
-ox_edges.drop('geometry',axis=1, inplace=True)
-ox_edges['cycleway'].fillna('unknown',inplace=True)
-ox_edges['cycleway_right'].fillna('unknown',inplace=True)
-ox_edges['cycleway_left'].fillna('unknown',inplace=True)
-ox_edges['cycleway_both'].fillna('unknown',inplace=True)
-ox_edges['bicycle_road'].fillna('unknown',inplace=True)
-ox_edges['maxspeed'].fillna('unknown',inplace=True)
-ox_edges['lit'].fillna('unknown',inplace=True)
-ox_edges['surface'].fillna('unknown',inplace=True)
-ox_edges['bicycle'].fillna('unknown',inplace=True)
-ox_edges['cyclestreet'].fillna('unknown',inplace=True)
+# Remove geometry attribute (required by simplification function)
+for n1, n2, d in G.edges(data=True):
+        d.pop('geometry', None)
 
-
-G_ox = ox.graph_from_gdfs(ox_nodes, ox_edges)
-#%%
-# # Simplify graph
-# G_sim = sf.simplify_graph(
-#     G_ox, 
-#     attributes = [
-#         'highway'])
+# Fill na/None values for simplification
+gf.update_edge_data(G, 'cycleway', None, 'unknown')
+gf.update_edge_data(G, 'cycleway:right', None, 'unknown')
+gf.update_edge_data(G, 'cycleway:left', None, 'unknown')
+gf.update_edge_data(G, 'cycleway:both', None, 'unknown')
+gf.update_edge_data(G, 'bicycle_road', None, 'unknown')
+gf.update_edge_data(G, 'maxspeed', None, 'unknown')
+gf.update_edge_data(G, 'lit', None, 'unknown')
+gf.update_edge_data(G, 'surface', None, 'unknown')
+gf.update_edge_data(G, 'bicycle', None, 'unknown')
+gf.update_edge_data(G, 'cyclestreet', None, 'unknown')
+gf.update_edge_data(G, 'access', None, 'unknown')
 #%%
 # Simplify grap
 G_sim = sf.simplify_graph(
-    G_ox, 
+    G, 
     attributes = [
-        'cycling_infrastructure',
         'highway',
         'cycleway',
-        'cycleway_right',
-        'cycleway_left',
-        'cycleway_both',
+        'cycleway:right',
+        'cycleway:left',
+        'cycleway:both',
         'bicycle_road',
         'maxspeed',
         'lit',
         'surface',
         'bicycle',
-        'cyclestreet'])
+        'cyclestreet',
+        'access'])
 
 #%%
 # Get undirected
 G_sim_un = ox.get_undirected(G_sim)
-
 G_un = ox.get_undirected(G)
 
 #%%
@@ -220,50 +211,56 @@ ox_nodes = gf.clean_col_names(ox_nodes)
 ox_edges_s = gf.clean_col_names(ox_edges_s)
 ox_nodes_s = gf.clean_col_names(ox_nodes_s)
 
-if use_postgres:
+print('Saving data to PostgreSQL!')
 
-    print('Saving data to PostgreSQL!')
+ox_nodes_s.reset_index(inplace=True, drop=True)
 
-    ox_nodes_s.reset_index(inplace=True, drop=True)
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-    connection = dbf.connect_pg(db_name, db_user, db_password)
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-    engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+dbf.to_postgis(geodataframe=ox_edges, table_name='osm_edges', engine=engine)
 
-    dbf.to_postgis(geodataframe=ox_edges, table_name='osm_edges', engine=engine)
+dbf.to_postgis(ox_nodes, 'osm_nodes', engine)
 
-    dbf.to_postgis(ox_nodes, 'osm_nodes', engine)
+dbf.to_postgis(geodataframe=ox_edges_s, table_name='osm_edges_simplified', engine=engine)
 
-    dbf.to_postgis(geodataframe=ox_edges_s, table_name='osm_edges_simplified', engine=engine)
+dbf.to_postgis(ox_nodes_s, 'osm_nodes_simplified', engine)
 
-    dbf.to_postgis(ox_nodes_s, 'osm_nodes_simplified', engine)
+q = 'SELECT osmid, name, highway FROM osm_edges LIMIT 10;'
 
-    q = 'SELECT osmid, name, highway FROM osm_edges LIMIT 10;'
+test = dbf.run_query_pg(q, connection)
 
-    test = dbf.run_query_pg(q, connection)
+print(test)
 
-    print(test)
+connection.close()
 
-    connection.close()
+#%%
+# Classify cycling infrastructure
 
-else:
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-    print('Saving data to file!')
+q = 'sql/define_cycling_infra_osm.sql'
 
-    ox.save_graphml(G_sim_un, filepath='../data/graph_osm_simple.graphml')
-    ox.save_graphml(G_un, filepath='../data/graph_osm.graphml')
+cycling_infra = dbf.run_query_pg(q, connection)
 
-    with open('../data/osm_edges.pickle', 'wb') as handle:
-        pickle.dump(ox_edges, handle, protocol=pickle.HIGHEST_PROTOCOL)
+#%%
+print('Saving data to file!')
 
-    with open('../data/osm_nodes.pickle', 'wb') as handle:
-        pickle.dump(ox_nodes, handle, protocol=pickle.HIGHEST_PROTOCOL)
+ox.save_graphml(G_sim_un, filepath='../data/graph_osm_simple.graphml')
+ox.save_graphml(G_un, filepath='../data/graph_osm.graphml')
 
-    with open('../data/osm_edges_sim.pickle', 'wb') as handle:
-        pickle.dump(ox_edges_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
+with open('../data/osm_edges.pickle', 'wb') as handle:
+    pickle.dump(ox_edges, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open('../data/osm_nodes_sim.pickle', 'wb') as handle:
-        pickle.dump(ox_nodes_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
+with open('../data/osm_nodes.pickle', 'wb') as handle:
+    pickle.dump(ox_nodes, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+with open('../data/osm_edges_sim.pickle', 'wb') as handle:
+    pickle.dump(ox_edges_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+with open('../data/osm_nodes_sim.pickle', 'wb') as handle:
+    pickle.dump(ox_nodes_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
 #%%
 #%%
 

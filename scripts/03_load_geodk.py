@@ -81,35 +81,34 @@ assert len(geodk_bike.edge_id) == len(geodk_bike)
 # assert len(edges.edge_id.unique()) == len(edges)
 
 #%%
-if use_postgres:
 
-    connection = dbf.connect_pg(db_name, db_user, db_password)
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-    engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-    dbf.to_postgis(geodataframe=geodk_bike, table_name='geodk_bike', engine=engine)
-    # dbf.to_postgis(geodataframe=edges, table_name='geodk_bike_simple', engine=engine)
-    # dbf.to_postgis(geodataframe=nodes, table_name='geo_dk_nodes_simple', engine=engine)
+dbf.to_postgis(geodataframe=geodk_bike, table_name='geodk_bike', engine=engine)
+# dbf.to_postgis(geodataframe=edges, table_name='geodk_bike_simple', engine=engine)
+# dbf.to_postgis(geodataframe=nodes, table_name='geo_dk_nodes_simple', engine=engine)
 
-    q = 'SELECT edge_id, vejklasse FROM geodk_bike LIMIT 10;'
-    #q2 = 'SELECT fot_id, feat_type FROM geodk_bike_simple LIMIT 10;'
+q = 'SELECT edge_id, vejklasse FROM geodk_bike LIMIT 10;'
+#q2 = 'SELECT fot_id, feat_type FROM geodk_bike_simple LIMIT 10;'
 
-    test = dbf.run_query_pg(q, connection)
+test = dbf.run_query_pg(q, connection)
 
-    print(test)
+print(test)
 
-    # test2 = dbf.run_query_pg(q2, connection)
+# test2 = dbf.run_query_pg(q2, connection)
 
-    # print(test2)
+# print(test2)
 
-    connection.close()
+connection.close()
 
-# else:
+#%%
  
-#     with open('../data/reference_data.pickle', 'wb') as handle:
-#         pickle.dump(graph_ref, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# with open('../data/reference_data.pickle', 'wb') as handle:
+#     pickle.dump(graph_ref, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-#     with open('../data/reference_data_simple.pickle', 'wb') as handle:
-#         pickle.dump(G_sim, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# with open('../data/reference_data_simple.pickle', 'wb') as handle:
+#     pickle.dump(G_sim, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
 #%%

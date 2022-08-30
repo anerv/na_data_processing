@@ -12,10 +12,8 @@ from src import db_functions as dbf
 import pickle
 
 #%%
-with open(r'config.yml') as file:
+with open(r'../config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
-
-    use_postgres = parsed_yaml_file['use_postgres']
 
     osm_fp = parsed_yaml_file['osm_fp']
 
