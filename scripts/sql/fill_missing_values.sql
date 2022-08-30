@@ -83,10 +83,9 @@ UPDATE osm_edges_simplified
             'living_street',
             'primary',
             'primary_link',
-            'residential',
+            --'residential',
             'motorway',
-            'motorway_link',
-            'service')  
+            'motorway_link')  
         AND lit_as IS NULL
 ;
 
