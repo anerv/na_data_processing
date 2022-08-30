@@ -1,10 +1,22 @@
 
-remove all where bicycle is no, dismount, private
-remove all where access is private
-remove all highways where bicycle infrastructure is not yes
- "highway" = 'footway' and bicycle IN ('designated','permissive','yes','destination' 
- bicycle IN ('yes','permissive', 'ok', 'allowed', 'designated')
+CREATE TABLE cycling_edges AS SELECT * FROM osm_edges_simplified;
 
- remove all where highway is pedestrian and...
+DELETE FROM cycling_edges WHERE 
+    cycling_infra_new != 'yes' AND
+    (bicycle IN ('no','dismount','private','use_sidepath') OR
+    access IN ('private','restricted','customers','no') OR
+    highway IN ('motorway','motorway_link') OR
+    (highway = 'footway' AND ( (bicycle NOT IN ('allowed','ok','designated','permissive','yes','destination')) OR bicycle IS NULL) ) OR
+    (highway = 'pedestrian' AND ((bicycle NOT IN ('allowed','ok','designated','permissive','yes','destination')) OR bicycle IS NULL) )
+    )
+;
 
-remove unconnected components less than a certain size
+CREATE TABLE cycling_nodes AS 
+	SELECT * FROM osm_nodes_simplified 
+    WHERE osmid IN
+        (SELECT u FROM cycling_edges
+        UNION
+        SELECT v FROM cycling_edges)
+;
+
+
