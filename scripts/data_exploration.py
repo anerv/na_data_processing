@@ -12,7 +12,7 @@ import pickle
 from timeit import default_timer as timer
 import os.path
 #%%
-with open(r'config.yml') as file:
+with open(r'../config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
 
     crs = parsed_yaml_file['CRS']
@@ -71,11 +71,11 @@ folium_layers = {
 
 connection = dbf.connect_pg(db_name, db_user, db_password)
 
-get_osm1 = "SELECT osmid, cycling_infrastructure, cycling_infra_new, edge_id, geometry FROM osm_edges_simplified WHERE cycling_infrastructure = 'yes';"
-get_osm2 = "SELECT osmid, cycling_infrastructure, cycling_infra_new, edge_id, geometry FROM osm_edges_simplified WHERE cycling_infra_new = 'yes';"
+get_osm1 = "SELECT osmid, cycling_infrastructure, edge_id, geometry FROM osm_edges_simplified WHERE cycling_infrastructure = 'yes';"
+#get_osm2 = "SELECT osmid, cycling_infrastructure, cycling_infra_new, edge_id, geometry FROM osm_edges_simplified WHERE cycling_infra_new = 'yes';"
 
 cycling_infra = gpd.GeoDataFrame.from_postgis(get_osm1, connection, geom_col='geometry')
-cycling_infra2 = gpd.GeoDataFrame.from_postgis(get_osm2,connection, geom_col='geometry')
+#cycling_infra2 = gpd.GeoDataFrame.from_postgis(get_osm2,connection, geom_col='geometry')
 #%%
 def style_function(x, color='purple', weight=3):
     return {"color":color, "weight":weight}
@@ -97,7 +97,7 @@ m = pf.make_foliumplot(
     layers_dict = folium_layers,
     center_gdf = cycling_infra,
     center_crs = cycling_infra.crs,
-    feature_layer=[cycling_feat,cycling_feat2]
+    feature_layer=[cycling_feat] # cycling_feat2
 )
 #%%
 m.save('../tests/data_expl.html')
