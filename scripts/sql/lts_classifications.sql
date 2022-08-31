@@ -9,3 +9,5 @@
     -- WHAT TYPE OF INTERSECTION DO THEY CONNECT TO
     -- WHAT CLASS OF STREET DO THEY CONNECT TO
 
+
+-- Find edges connected to type edges

@@ -92,49 +92,43 @@ print(f'{len(intersections)} nodes with information on intersections found!')
 #%%
 # Export data
 
-if use_postgres:
+print('Saving data to PostgreSQL!')
 
-    print('Saving data to PostgreSQL!')
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-    connection = dbf.connect_pg(db_name, db_user, db_password)
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-    engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+dbf.to_postgis(geodataframe=intersections, table_name='intersection_tags', engine=engine)
 
-    dbf.to_postgis(geodataframe=intersections, table_name='intersection_tags', engine=engine)
+q = 'SELECT id, highway FROM intersection_tags LIMIT 10;'
 
-    q = 'SELECT id, highway FROM intersection_tags LIMIT 10;'
+test = dbf.run_query_pg(q, connection)
 
-    test = dbf.run_query_pg(q, connection)
+print(test)
 
-    print(test)
+connection.close()
 
-    connection.close()
 
-else:
+# print('Saving data to file!')
 
-    print('Saving data to file!')
-
-    with open('../data/osm_intersection_tags.pickle', 'wb') as handle:
-        pickle.dump(intersections, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# with open('../data/osm_intersection_tags.pickle', 'wb') as handle:
+#     pickle.dump(intersections, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 #%%
-if use_postgres:
 
-    print('Classifying intersection nodes!')
+print('Classifying intersection nodes!')
 
-    connection = dbf.connect_pg(db_name, db_user, db_password)
+connection = dbf.connect_pg(db_name, db_user, db_password)
 
-    engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+q = 'sql/intersections.sql'
 
-    q = 'intersections.sql'
+inter = dbf.run_query_pg(q, connection)
 
-    inter = dbf.run_query_pg(q, connection)
+q = 'SELECT osmid, count, inter_type FROM intersections WHERE inter_type IS NOT NULL LIMIT 10;'
 
-    q = 'SELECT * FROM intersections LIMIT 10;'
+test = dbf.run_query_pg(q, connection)
 
-    test = dbf.run_query_pg(q, connection)
+print(test)
 
-    print(test)
-
-    connection.close()
+connection.close()
 #%%

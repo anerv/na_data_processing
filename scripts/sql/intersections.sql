@@ -54,6 +54,34 @@ CREATE VIEW matched_intersections AS
 
 UPDATE intersections i SET inter_type = mi.inter_type FROM matched_intersections mi WHERE i.osmid = mi.osmid;
 
+-- maybe only include regulated intersections?
+CREATE TABLE untagged_intersections AS SELECT * FROM intersections WHERE inter_type IS NULL;
+CREATE TABLE tagged_intersections AS SELECT * FROM intersections WHERE inter_type IS NOT NULL and inter_type != 'unregulated';
+
+CREATE INDEX untagged_inter_geom_idx ON untagged_intersections USING GIST (geometry);
+CREATE INDEX tagged_geom_idx ON tagged_intersections USING GIST (geometry);
+
+CREATE TABLE grouped_intersections AS (
+SELECT a.osmid, b.id2,
+       b.inter_type,
+       ST_Distance(a.geometry, b.geometry) as dist,
+       a.geometry
+FROM untagged_intersections AS a
+JOIN LATERAL (
+  SELECT inter_type, geometry, osmid as id2
+  FROM tagged_intersections as t
+  ORDER BY a.geometry <-> t.geometry
+  LIMIT 1
+) AS b
+ON true);
+
+DELETE FROM grouped_intersections WHERE dist > 15; -- 10?
+
+UPDATE intersections i SET inter_type = gi.inter_type FROM grouped_intersections gi WHERE i.osmid = gi.osmid;
+
+
 DROP VIEW node_degrees;
 DROP VIEW matched_intersections;
 DROP MATERIALIZED VIEW unmatched_inter_tags;
+DROP TABLE tagged_intersections;
+DROP TABLE untagged_intersections;
