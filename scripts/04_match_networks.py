@@ -48,7 +48,7 @@ bb = osm_edges_simplified.unary_union.bounds
 geodk = geodk.cx[bb[0]:bb[2],bb[1]:bb[3]]
 
 #osm_edges_simplified = osm_edges_simplified.loc[osm_edges_simplified.highway != 'service'] # Do not include service in matching process
-osm_edges_simplified = osm_edges_simplified.loc[~osm_edges_simplified.highway.isin(['footway'])] # Do not include service or footways in matching process
+#osm_edges_simplified = osm_edges_simplified.loc[~osm_edges_simplified.highway.isin(['footway'])] # Do not include service or footways in matching process
 
 #%%
 # Create segments
@@ -233,7 +233,7 @@ with open('../results/matched_osm_surface', 'w') as fp:
         json.dump(matched_osm_overflade_dict, fp)
 
 #%%
-
+# Add data from matched data to OSM edge table
 print('Combining OSM and updated data!')
 
 connection = dbf.connect_pg(db_name, db_user, db_password)
@@ -273,7 +273,7 @@ print(f'{count2-count1} new edges are marked as cycling infrastructure!')
 connection.close()
 
 #%%
-
+# Fix gaps in cycling network created by unmatched edges at intersections etc.
 print('Fixing geodk gaps...')
 
 connection = dbf.connect_pg(db_name, db_user, db_password)
