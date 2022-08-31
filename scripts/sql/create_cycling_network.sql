@@ -5,9 +5,9 @@ DELETE FROM cycling_edges WHERE
     cycling_infra_new != 'yes' AND
     (bicycle IN ('no','dismount','private','use_sidepath') OR
     access IN ('private','restricted','customers','no') OR
-    highway IN ('motorway','motorway_link') OR
-    (highway = 'footway' AND ( (bicycle NOT IN ('allowed','ok','designated','permissive','yes','destination')) OR bicycle IS NULL) ) OR
-    (highway = 'pedestrian' AND ((bicycle NOT IN ('allowed','ok','designated','permissive','yes','destination')) OR bicycle IS NULL) )
+    highway IN ('motorway','motorway_link') --OR
+    --(highway = 'footway' AND ( (bicycle NOT IN ('allowed','ok','designated','permissive','yes','destination')) OR bicycle IS NULL) ) OR
+    --(highway = 'pedestrian' AND ((bicycle NOT IN ('allowed','ok','designated','permissive','yes','destination')) OR bicycle IS NULL) )
     )
 ;
 
