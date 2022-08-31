@@ -12,6 +12,8 @@ import yaml
 import osmnx as ox
 import networkx as nx
 import pandas as pd
+import geopandas as gpd
+import dask_geopandas as dgpd
 import json
 from src import db_functions as dbf
 import pickle
@@ -66,6 +68,7 @@ edges = edges.merge(attr, on='temp_id', how='left')
 edges.drop('dict',axis=1,inplace=True)
 edges.drop('temp_id', axis=1, inplace=True)
 #edges.rename({'dict':'tags'},inplace=True, axis=1)
+
 #%%
 # Filter out edges with irrelevant highway types
 unused_highway_values = ['abandoned','planned','proposed','construction','disused','elevator',
@@ -101,8 +104,8 @@ with open('../data/osm_pyrosm_graph', 'wb') as handle:
 
 #%%
 # Remove geometry attribute (required by simplification function)
-for n1, n2, d in G.edges(data=True):
-        d.pop('geometry', None)
+# for n1, n2, d in G.edges(data=True):
+#         d.pop('geometry', None)
 
 # Fill na/None values for simplification
 gf.update_edge_data(G, 'cycleway', None, 'unknown')
@@ -117,9 +120,15 @@ gf.update_edge_data(G, 'bicycle', None, 'unknown')
 gf.update_edge_data(G, 'cyclestreet', None, 'unknown')
 gf.update_edge_data(G, 'access', None, 'unknown')
 #%%
+# Convert to index format used by osmnx
+ox_nodes, ox_edges = ox.graph_to_gdfs(G)
+ox_edges.drop('geometry',axis=1, inplace=True)
+G_ox = ox.graph_from_gdfs(ox_nodes, ox_edges)
+
+#%%
 # Simplify grap
 G_sim = sf.simplify_graph(
-    G, 
+    G_ox, 
     attributes = [
         'highway',
         'cycleway',
