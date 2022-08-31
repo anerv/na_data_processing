@@ -77,6 +77,11 @@ unused_highway_values = ['abandoned','planned','proposed','construction','disuse
 
 org_len = len(edges)
 edges = edges.loc[~edges.highway.isin(unused_highway_values)]
+
+# Filter out pedestrian edges
+pedestrian_edges = edges.loc[(edges.highway.isin(['footway','pedestrian'])) & (~edges.bicycle.isin(['allowed','ok','designated','permissive','yes','destination']))]
+edges.drop(pedestrian_edges.index,inplace=True)
+
 new_len = len(edges)
 
 print(f'{org_len - new_len} edges where removed')
@@ -217,23 +222,28 @@ q = 'sql/define_cycling_infra_osm.sql'
 
 cycling_infra = dbf.run_query_pg(q, connection)
 
-q = 'SELECT name, highway, cycling_infrastructure from osm_edges_simplified LIMIT 10;'
+q = "SELECT name, highway, cycling_infrastructure from osm_edges_simplified WHERE cycling_infrastructure = 'yes' LIMIT 10;"
 
+test = dbf.run_query_pg(q, connection)
+
+print(test)
+
+connection.close()
 #%%
-print('Saving data to file!')
+# print('Saving data to file!')
 
-ox.save_graphml(G_sim_un, filepath='../data/graph_osm_simple.graphml')
-ox.save_graphml(G_un, filepath='../data/graph_osm.graphml')
+# ox.save_graphml(G_sim_un, filepath='../data/graph_osm_simple.graphml')
+# ox.save_graphml(G_un, filepath='../data/graph_osm.graphml')
 
-with open('../data/osm_edges.pickle', 'wb') as handle:
-    pickle.dump(ox_edges, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# with open('../data/osm_edges.pickle', 'wb') as handle:
+#     pickle.dump(ox_edges, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-with open('../data/osm_nodes.pickle', 'wb') as handle:
-    pickle.dump(ox_nodes, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# with open('../data/osm_nodes.pickle', 'wb') as handle:
+#     pickle.dump(ox_nodes, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-with open('../data/osm_edges_sim.pickle', 'wb') as handle:
-    pickle.dump(ox_edges_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# with open('../data/osm_edges_sim.pickle', 'wb') as handle:
+#     pickle.dump(ox_edges_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-with open('../data/osm_nodes_sim.pickle', 'wb') as handle:
-    pickle.dump(ox_nodes_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# with open('../data/osm_nodes_sim.pickle', 'wb') as handle:
+#     pickle.dump(ox_nodes_s, handle, protocol=pickle.HIGHEST_PROTOCOL)
 #%%
