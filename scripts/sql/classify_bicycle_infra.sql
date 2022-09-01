@@ -99,13 +99,13 @@ UPDATE osm_edges_simplified
 UPDATE osm_edges_simplified 
     SET protected = 'mixed'
         WHERE
-        protected = 'true' AND
+        protected = 'true' AND (
         geodk_bike = 'Cykelbane langs vej' OR
         bicycle_road = 'yes' OR
         cycleway IN ('lane','opposite_lane','shared_lane','crossing') OR
         cycleway_left in ('lane','opposite_lane','shared_lane','crossing') OR
         cycleway_right in ('lane','opposite_lane','shared_lane','crossing') OR
-        cycleway_both in ('lane','opposite_lane','shared_lane','crossing')
+        cycleway_both in ('lane','opposite_lane','shared_lane','crossing'))
 ;
 
 
@@ -133,7 +133,7 @@ UPDATE osm_edges_simplified
 -- False if not known to be true
 UPDATE osm_edges_simplified
     SET bike_separated = 'false' 
-        WHERE cycling_infra_new = 'yes'
+        WHERE cycling_allowed = 'yes'
 ;
 
 UPDATE osm_edges_simplified

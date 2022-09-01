@@ -7,11 +7,11 @@ ALTER TABLE osm_edges_simplified
 
 -- Limiting number of road segments with road type 'unknown'
 CREATE VIEW unknown_roadtype AS 
-    (SELECT name, osm_id, highway, geometry FROM osm_edges_simplified WHERE highway = 'unclassified')
+    (SELECT name, osmid, highway, geometry FROM osm_edges_simplified WHERE highway = 'unclassified')
 ;
 
 CREATE VIEW known_roadtype AS 
-    (SELECT name, osm_id, highway, geometry FROM osm_edges_simplified 
+    (SELECT name, osmid, highway, geometry FROM osm_edges_simplified 
         WHERE highway != 'unclassified' AND highway != 'cycleway');
 
 UPDATE unknown_roadtype uk SET highway = kr.highway FROM known_roadtype kr 
@@ -40,7 +40,7 @@ UPDATE osm_edges_simplified SET cycleway_surface = om.surface
     AND cycleway_surface IS NULL;
 ;
 
-UPDATE osm_edges_simplified SET cycling_surface_as = surface WHERE surface != 'unknown' AND cycling_infra_new = 'yes';;
+UPDATE osm_edges_simplified SET cycling_surface_as = surface WHERE surface != 'unknown' AND cycling_infra_new = 'yes';
 UPDATE osm_edges_simplified SET cycling_surface_as = cycleway_surface;
 
 -- Cycling surface is assumed paved if along a car street    
@@ -57,18 +57,20 @@ UPDATE osm_edges_simplified
             'primary',
             'primary_link',
             'residential',
+            --'service',
             'motorway',
-            'motorway_link',
-            'service') 
+            'motorway_link'
+            ) 
             AND cycling_surface_as IS NULL
-            AND cycling_infra_new = 'yes';
+            AND cycling_allowed = 'yes';
 ;
 
 UPDATE osm_edges_simplified 
     SET cycling_surface_as = 'paved' 
-        WHERE along_street = true AND surface IS NULL AND cycling_infra_new = 'yes';
+        WHERE along_street = 'true' AND surface IS NULL AND cycling_infra_new = 'yes'
+;
 
-
+-- UPDATE BASED ON URBAN AREAS
 -- LIT
 UPDATE osm_edges_simplified SET lit_as = lit;
 UPDATE osm_edges_simplified 
@@ -87,11 +89,12 @@ UPDATE osm_edges_simplified
             'motorway',
             'motorway_link')  
         AND lit_as IS NULL
+        AND urban_area = 'yes'
 ;
 
 UPDATE osm_edges_simplified 
     SET lit_as = 'yes' 
-        WHERE along_street = true 
+        WHERE along_street = 'true' 
         AND highway = 'cycleway' 
         AND urban_area = 'yes'
         AND lit_as IS NULL
@@ -99,7 +102,7 @@ UPDATE osm_edges_simplified
 
  -- is this safe to assume??
 
---UPDATE osm_edges_simplified SET lit_as = 'yes' WHERE along_street = true IF -- intersects with urban area??
+--UPDATE osm_edges_simplified SET lit_as = 'yes' WHERE along_street = 'true' IF -- intersects with urban area??
 
 -- SPEED 
 -- UPDATE osm_edges_simplified SET speed_as = speed;
