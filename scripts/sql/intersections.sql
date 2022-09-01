@@ -56,7 +56,7 @@ UPDATE intersections i SET inter_type = mi.inter_type FROM matched_intersections
 
 -- maybe only include regulated intersections?
 CREATE TABLE untagged_intersections AS SELECT * FROM intersections WHERE inter_type IS NULL;
-CREATE TABLE tagged_intersections AS SELECT * FROM intersections WHERE inter_type IS NOT NULL and inter_type != 'unregulated';
+CREATE TABLE tagged_intersections AS SELECT * FROM intersections WHERE inter_type = 'regulated';
 
 CREATE INDEX untagged_inter_geom_idx ON untagged_intersections USING GIST (geometry);
 CREATE INDEX tagged_geom_idx ON tagged_intersections USING GIST (geometry);
