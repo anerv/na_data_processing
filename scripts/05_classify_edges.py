@@ -46,7 +46,11 @@ test = dbf.run_query_pg(q, connection)
 print(test)
 
 #%%
+# TODO: Classify as urban/non-urban
 
+
+
+#%%
 print('Interpolating missing attributes...')
 
 connection = dbf.connect_pg(db_name, db_user, db_password)
