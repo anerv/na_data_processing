@@ -117,6 +117,7 @@ gf.update_edge_data(G, 'cycleway', None, 'unknown')
 gf.update_edge_data(G, 'cycleway:right', None, 'unknown')
 gf.update_edge_data(G, 'cycleway:left', None, 'unknown')
 gf.update_edge_data(G, 'cycleway:both', None, 'unknown')
+gf.update_edge_data(G, 'cycleway_surface', None, 'unknown')
 gf.update_edge_data(G, 'bicycle_road', None, 'unknown')
 gf.update_edge_data(G, 'maxspeed', None, 'unknown')
 gf.update_edge_data(G, 'lit', None, 'unknown')
@@ -144,6 +145,7 @@ G_sim = sf.simplify_graph(
         'maxspeed',
         'lit',
         'surface',
+        'cycleway_surface',
         'bicycle',
         'cyclestreet',
         'access'])
