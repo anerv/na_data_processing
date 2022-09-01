@@ -281,9 +281,8 @@ connection = dbf.connect_pg(db_name, db_user, db_password)
 engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
 q = "SELECT COUNT (*) FROM osm_edges_simplified WHERE geodk_bike IS NOT NULL;"
-count1 = dbf.run_query_pg(q, connection)[0][0]
 
-#connection = dbf.connect_pg(db_name, db_user, db_password)
+count1 = dbf.run_query_pg(q, connection)[0][0]
 
 q = 'sql/fill_geodk_gaps.sql'
 
