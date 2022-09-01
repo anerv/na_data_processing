@@ -8,7 +8,7 @@ from src import db_functions as dbf
 
 #%%
 
-with open(r'config.yml') as file:
+with open(r'../config.yml') as file:
     parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
 
     use_postgres = parsed_yaml_file['use_postgres']
@@ -39,7 +39,7 @@ classify = dbf.run_query_pg(q, connection)
 
 connection = dbf.connect_pg(db_name, db_user, db_password)
 
-q = 'SELECT edge_id, protected FROM osm_edges_simplified WHERE protected = true LIMIT 10;'
+q = "SELECT edge_id, protected FROM osm_edges_simplified WHERE protected = 'true' LIMIT 10;"
 
 test = dbf.run_query_pg(q, connection)
 

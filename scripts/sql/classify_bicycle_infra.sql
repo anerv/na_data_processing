@@ -12,7 +12,7 @@ ALTER TABLE osm_edges_simplified
     ADD COLUMN protected VARCHAR DEFAULT NULL,
     ADD COLUMN car_traffic VARCHAR DEFAULT NULL,
     ADD COLUMN bike_separated VARCHAR DEFAULT NULL,
-    ADD COLUMN along_street VARCHAR DEFAULT NULL
+    ADD COLUMN along_street VARCHAR DEFAULT NULL,
     ADD COLUMN muni VARCHAR DEFAULT NULL
 ;
 
@@ -187,6 +187,7 @@ CREATE TABLE buffered_car_roads AS
 ;
 
 CREATE INDEX buffer_geom_idx ON buffered_car_roads USING GIST (geom);
+CREATE INDEX osm_edges_geom_idx ON osm_edges_simplified USING GIST (geometry);
 
 CREATE TABLE intersecting_cycle_roads AS 
 (SELECT o.edge_id, o.geometry FROM osm_edges_simplified o, buffered_car_roads br
