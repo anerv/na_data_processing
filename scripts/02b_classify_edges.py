@@ -70,3 +70,20 @@ test = dbf.run_query_pg(q, connection)
 print(test)
 
 #%%
+print('Create cycling network...')
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+
+q = 'sql/create_cycling_network.sql'
+
+interpolate = dbf.run_query_pg(q, connection)
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+q = "SELECT edge_id, cycling_infra_new FROM cycling_edges LIMIT 10;"
+
+test = dbf.run_query_pg(q, connection)
+
+print(test)
