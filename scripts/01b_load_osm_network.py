@@ -13,7 +13,6 @@ import osmnx as ox
 import networkx as nx
 import pandas as pd
 import geopandas as gpd
-import dask_geopandas as dgpd
 import json
 from src import db_functions as dbf
 import pickle
