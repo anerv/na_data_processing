@@ -1,2 +1,5 @@
+module load Anaconda3
+
+
 conda config --prepend channels conda-forge
-conda create -n hpc_test --strict-channel-priority osmnx pyrosm geopandas pandas networkx pyyaml haversine
+conda create -n na_data_hpc --strict-channel-priority osmnx pyrosm geopandas pandas networkx pyyaml haversine
