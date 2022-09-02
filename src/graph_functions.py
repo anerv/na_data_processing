@@ -1,8 +1,7 @@
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely.ops import linemerge, substring
-from shapely.geometry import MultiLineString
+from shapely.ops import linemerge
 import momepy 
 import osmnx as ox
 
