@@ -1,0 +1,23 @@
+### Setting up condas environment:
+
+module load Anaconda3
+
+conda config --prepend channels conda-forge
+conda create -n na_data_hpc --strict-channel-priority osmnx pyrosm geopandas pandas networkx pyyaml haversine
+
+
+### Upload data:
+
+--- scp -r /local/directory remote_username@10.10.0.2:/remote/directory
+
+scp -r /Users/anev/OneDrive - ITU/RESEARCH/NA_data_processing/scripts
+scp -r /Users/anev/OneDrive - ITU/RESEARCH/NA_data_processing/src 
+scp setup.py
+scp config.yml
+
+mkdir data
+
+eval "$(conda shell.bash hook)"
+
+conda activate na_data_hpc
+pip install -e .

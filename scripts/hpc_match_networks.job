@@ -10,9 +10,10 @@
 #SBATCH --mail-type=FAIL,END     # Send an email when job fails or finishes
 
 module load Anaconda3
+eval "$(conda shell.bash hook)"
 . $(conda info --base)/etc/profile.d/conda.sh
 conda activate na_data_hpc
 
-python 01b_load_osm_hpc.py
+python 02a_match_networks_hpc.py
 
-### ~/.conda/envs/na_data_hpc/bin/python 01b_load_osm_hpc.py $SLURM_ARRAY_TASK_ID
+### ~/.conda/envs/na_data_hpc/bin/python 02a_match_networks_hpc.py $SLURM_ARRAY_TASK_ID
