@@ -75,3 +75,8 @@ data/pop/GHS_POP_E2020_GLOBE_R2022A_54009_100_V1_0_R3_C19/GHSL_Data_Package_2022
 data/pop/GHS_POP_E2020_GLOBE_R2022A_54009_100_V1_0_R3_C20/GHS_POP_E2020_GLOBE_R2022A_54009_100_V1_0_R3_C20.tif
 .gitignore
 data/pop/GHS_POP_E2020_GLOBE_R2022A_54009_100_V1_0_R3_C20/GHSL_Data_Package_2022_light.pdf
+data/pop/clipped_pop_raster
+data/pop/clipped_pop_raster.tif
+data/pop/merged_pop_raster
+data/pop/merged_pop_raster.tif
+data/pop/reproj_pop_raster.tif

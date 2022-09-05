@@ -1,10 +1,6 @@
 '''
 TODO:
-- load pop data
-- merge tif files
-- reproject
 - resample to different resolution?
-- cut to DK area
 - create H3 polygons at resolution XX
 - Classify as urban/non-urban
 - Convert to polygons classified as urban/non-urban
@@ -26,6 +22,10 @@ import pickle
 from src import db_functions as dbf
 from timeit import default_timer as timer
 from rasterio.plot import show
+from rasterio.merge import merge
+from rasterio.mask import mask
+from shapely.geometry import box
+from rasterio.warp import calculate_default_transform, reproject, Resampling
 
 with open(r'../config.yml') as file:
 
@@ -45,15 +45,116 @@ with open(r'../config.yml') as file:
   
 print('Settings loaded!')
 #%%
-
+# LOAD DATA
 pop_src_1 = rasterio.open(pop_fp_1)
 pop_src_2 = rasterio.open(pop_fp_2)
 
+# MERGE RASTERS
+mosaic, out_trans = merge([pop_src_1, pop_src_2])
 
-fig, ax = plt.subplots(1, figsize= (12, 12))
+out_meta = pop_src_1.meta.copy()
+
+out_meta.update({
+    "driver": "GTiff",
+    "height": mosaic.shape[1],
+    "width": mosaic.shape[2],
+    "transform": out_trans,
+    "crs": pop_src_1.crs.data # TODO
+    }
+)
+merged_fp = '../data/pop/merged_pop_raster.tif'
+with rasterio.open(merged_fp, "w", **out_meta) as dest:
+    dest.write(mosaic)
+
+# RELOAD
+mosaic = rasterio.open(merged_fp)
+
+# CLIP TO DK EXTENT
+minx, miny = 6, 54
+maxx, maxy = 16, 57.9
+bbox = box(minx, miny, maxx, maxy)
+geo = gpd.GeoDataFrame({'geometry': bbox}, index=[0], crs='EPSG:4326')
+geo = geo.to_crs(crs=pop_src_1.crs.data)
+
+bb_coords = [json.loads(geo.to_json())['features'][0]['geometry']]
+
+clipped, out_transform = mask(mosaic, shapes=bb_coords, crop=True)
+
+out_meta = mosaic.meta.copy()
+
+out_meta.update({
+    "driver": "GTiff",
+    "height": clipped.shape[1],
+    "width": clipped.shape[2],
+    "transform": out_trans,
+    "crs": pop_src_1.crs.data # TODO
+    }
+)
+
+clipped_fp = '../data/pop/clipped_pop_raster.tif'
+with rasterio.open(clipped_fp, "w", **out_meta) as dest:
+    dest.write(clipped)
+
+# REPROJECT
+dst_crs = 'EPSG:4326'
+proj_fp = '../data/pop/reproj_pop_raster.tif'
+
+with rasterio.open(clipped_fp) as src:
+    transform, width, height = calculate_default_transform(
+        src.crs, dst_crs, src.width, src.height, *src.bounds)
+    kwargs = src.meta.copy()
+    kwargs.update({
+        'crs': dst_crs,
+        'transform': transform,
+        'width': width,
+        'height': height
+    })
+
+    with rasterio.open(proj_fp, 'w', **kwargs) as dst:
+        for i in range(1, src.count + 1):
+            reproject(
+                source=rasterio.band(src, i),
+                destination=rasterio.band(dst, i),
+                src_transform=src.transform,
+                src_crs=src.crs,
+                dst_transform=transform,
+                dst_crs=dst_crs,
+                resampling=Resampling.bilinear) # TODO: Should I use average?
 
 #%%
 
+# TODO: figure out min hex resolution I want for population data - make sure that raster data resolution matches this
+
+upscale_factor = 2
+
+with rasterio.open(proj_fp) as dataset:
+
+    # resample data to target shape
+    data = dataset.read(
+        out_shape=(
+            dataset.count,
+            int(dataset.height * upscale_factor),
+            int(dataset.width * upscale_factor)
+        ),
+        resampling=Resampling.bilinear
+    )
+
+    # scale image transform
+    transform = dataset.transform * dataset.transform.scale(
+        (dataset.width / data.shape[-1]),
+        (dataset.height / data.shape[-2])
+    )
+
+# TODO: Combine with H3 data
+
+
+# TODO: CREATE URBAN/NON-URBAN CLASSIFICATION
+
+
+
+
+
+#%%
 APERTURE_SIZE = 9
 hex_col = 'hex'+str(APERTURE_SIZE)
 
