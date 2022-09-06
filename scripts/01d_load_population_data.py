@@ -1,6 +1,6 @@
 '''
 TODO:
-- resample to different resolution?
+- clip to DK extent
 - create H3 polygons at resolution XX
 - Classify as urban/non-urban
 - Convert to polygons classified as urban/non-urban
@@ -26,6 +26,7 @@ from rasterio.merge import merge
 from rasterio.mask import mask
 from shapely.geometry import box
 from rasterio.warp import calculate_default_transform, reproject, Resampling
+import rioxarray
 
 with open(r'../config.yml') as file:
 
@@ -95,7 +96,7 @@ clipped_fp = '../data/pop/clipped_pop_raster.tif'
 with rasterio.open(clipped_fp, "w", **out_meta) as dest:
     dest.write(clipped)
 
-# REPROJECT
+# REPROJECT # TODO: Download data in correct projection
 dst_crs = 'EPSG:4326'
 proj_fp = '../data/pop/reproj_pop_raster.tif'
 
@@ -123,35 +124,28 @@ with rasterio.open(clipped_fp) as src:
 
 #%%
 
-# TODO: figure out min hex resolution I want for population data - make sure that raster data resolution matches this
-
-upscale_factor = 2
-
-with rasterio.open(proj_fp) as dataset:
-
-    # resample data to target shape
-    data = dataset.read(
-        out_shape=(
-            dataset.count,
-            int(dataset.height * upscale_factor),
-            int(dataset.width * upscale_factor)
-        ),
-        resampling=Resampling.bilinear
-    )
-
-    # scale image transform
-    transform = dataset.transform * dataset.transform.scale(
-        (dataset.width / data.shape[-1]),
-        (dataset.height / data.shape[-2])
-    )
-
 # TODO: Combine with H3 data
 
+df = (rioxarray.open_rasterio(proj_fp)
+      .sel(band=1)
+      .to_pandas()
+      .stack()
+      .reset_index()
+      .rename(columns={'x': 'lng', 'y': 'lat', 0: 'population'}))
 
-# TODO: CREATE URBAN/NON-URBAN CLASSIFICATION
+# ignore the missing values
+df = df[df.population>-200]
 
+def plot_scatter(df, metric_col, x='lng', y='lat', marker='.', alpha=1, figsize=(16,12), colormap='viridis'):    
+    df.plot.scatter(x=x, y=y, c=metric_col, title=metric_col
+                    , edgecolors='none', colormap=colormap, marker=marker, alpha=alpha, figsize=figsize);
+    plt.xticks([], []); plt.yticks([], [])
 
+plot_scatter(df, metric_col='population', marker='.', colormap='gray')
 
+#%%
+
+# TODO: Vectorize - raster or H3?
 
 
 #%%

@@ -8,14 +8,19 @@ conda create -n na_data_hpc --strict-channel-priority osmnx pyrosm geopandas pan
 
 ### Upload data:
 
---- scp -r /local/directory remote_username@10.10.0.2:/remote/directory
-
-scp -r /Users/anev/OneDrive - ITU/RESEARCH/NA_data_processing/scripts
-scp -r /Users/anev/OneDrive - ITU/RESEARCH/NA_data_processing/src 
-scp setup.py
-scp config.yml
+mkdir na_data
+cd na_data
 
 mkdir data
+
+--- scp -r /local/directory remote_username@10.10.0.2:/remote/directory
+
+scp -r /Users/anev/'OneDrive - ITU'/RESEARCH/NA_data_processing /home/anev/na_data
+
+scp -r /Users/anev/'OneDrive - ITU/RESEARCH'/NA_data_processing/scripts /home/anev/na_data
+scp -r /Users/anev/'OneDrive - ITU/RESEARCH'/NA_data_processing/src 
+scp /Users/anev/'OneDrive - ITU/RESEARCH'/NA_data_processing/setup.py
+scp config.yml /home/anev/na_data
 
 eval "$(conda shell.bash hook)"
 
