@@ -1,10 +1,5 @@
 '''
-TODO:
-- Classify as urban/non-urban
-- Convert to polygons classified as urban/non-urban
-    - load to postgres
-- Save H3 polygons with pop densities to file (for later use)
-
+POPULATION H3 HEX GRID
 '''
 
 #%%
@@ -19,11 +14,9 @@ import json
 import pickle
 from src import db_functions as dbf
 from src import plotting_functions as pf
-from timeit import default_timer as timer
 from rasterio.plot import show
 from rasterio.merge import merge
 from rasterio.mask import mask
-from shapely.geometry import box
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 import rioxarray
 
@@ -173,8 +166,8 @@ test = rasterio.open(proj_fp_wgs84)
 assert test.crs.to_string() == 'EPSG:4326'
 
 print('Population data has been merged, clipped, reprojected and downsampled!')
-#%%
-# COMBINE WITH H3 DATA # TODO 
+
+# COMBINE WITH H3 DATA
 
 pop_df = (rioxarray.open_rasterio(proj_fp_wgs84)
       .sel(band=1)
@@ -198,7 +191,7 @@ pop_gdf = gpd.sjoin(pop_gdf, dk_gdf, op='within', how='inner')
 
 pf.plot_scatter(pop_gdf, metric_col='population', marker='.', colormap='Oranges')
 
-#%%
+
 # INDEX POPULATION AT VARIOUS H3 LEVELS
 for res in range(7, 11):
     col_hex_id = "hex_id_{}".format(res)
@@ -221,10 +214,12 @@ for res in range(7, 11):
                                                        h=x, geo_json=True)]
                                                    }
                                          )
+
+pop_gdf.to_file('../data/intermediary/pop/pop_hex.gpkg',driver='GPKG')
 #%%
 # Test plot
 hex_id_col = 'hex_id_7'
-grouped = pop_gdf.groupby(hex_col)['population'].sum().to_frame('population').reset_index()
+grouped = pop_gdf.groupby(hex_id_col)['population'].sum().to_frame('population').reset_index()
 
 grouped['lat'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[0])
 grouped['lng'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[1])
@@ -242,11 +237,3 @@ grouped.plot.scatter(x='lng',y='lat',c='population',marker='o',edgecolors='none'
 plt.xticks([], []); plt.yticks([], []);
 plt.title('hex-grid: population');
 
-#%%
-# We transform the coordinates to WGS 84, 
-# create the h3 indices at resolution 9 otherwise our map will be incomplete. 
-# We specify urban areas as pixels with values 21, 22, 23 or 30 
-# and values 11, 12, 13 as rural areas as specified in the data documentation. Pixels with value 10 are water pixels and they are removed. Finally, we assign hexagons at resolution 11 the corresponding urban-rural label depending on their parent h3 index. If a parent h3 index is from a water pixel we assign it as a rural hexagon.  
-
-
-# TODO: Vectorize - raster or H3?
