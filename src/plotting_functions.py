@@ -1,6 +1,7 @@
 ### FUNCTIONS FOR FOLIUM PLOTTING
 import folium
 import geopandas as gpd
+import matplotlib.pyplot as plt
 
 def make_foliumplot(layers_dict, center_gdf, center_crs, feature_groups=None, feature_layer=None):
 
@@ -132,3 +133,14 @@ def make_nodefeaturegroup(gdf, mysize, mycolor, nametag, show_nodes = True):
                 fill_opacity = 1).add_to(fg_no)
 
     return fg_no
+
+
+
+def plot_scatter(df, metric_col, x='lng', y='lat', marker='.', alpha=1, figsize=(16,12), colormap='viridis'):   
+
+    '''
+    Helper function from H3 tutorials: https://github.com/uber/h3-py-notebooks
+    ''' 
+    df.plot.scatter(x=x, y=y, c=metric_col, title=metric_col
+                    , edgecolors='none', colormap=colormap, marker=marker, alpha=alpha, figsize=figsize);
+    plt.xticks([], []); plt.yticks([], [])
