@@ -1,7 +1,5 @@
 #This file contains setting used in the data processing
 
-use_postgres: True
-
 osm_fp: '../data/raw/osm/kbhaug22.osm.pbf' # '../data/osm/custom_files/denmark-latest.osm.pbf' 
 geodk_fp: '../data/raw/geodk/VEJMIDTE_BRUDT.shp'
 geodk_id_col: 'fot_id'
@@ -18,11 +16,7 @@ db_port: '5432'
 db_host: 'localhost'
 db_password: 'aneitu'
 
-
 study_area: 'DK'
 
 muni_fp: '../data/muni_boundary.gpkg'
-
-quality_check: True
-quality_data: '../data/.json' # Data to be used for quality metrics for data matching
 
