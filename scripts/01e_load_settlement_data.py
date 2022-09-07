@@ -1,6 +1,7 @@
 '''
 SETTLEMENT
 TODO:
+- find min h3 resolution
 - Classify as urban/non-urban
 - Convert to polygons classified as urban/non-urban
     - load to postgres
@@ -66,6 +67,7 @@ with rasterio.open(merged_fp, "w", **out_meta) as dest:
 
 merged = rasterio.open(merged_fp)
 
+#%%
 # Load DK boundaries
 engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
@@ -174,39 +176,40 @@ assert test.crs.to_string() == 'EPSG:4326'
 print('Settlement data has been merged, clipped and reprojected!')
 
 #%%
+# TODO: Find max level of H3 to be used!
 # COMBINE WITH H3 DATA
 
-pop_df = (rioxarray.open_rasterio(proj_fp_wgs84)
+sett_df = (rioxarray.open_rasterio(proj_fp_wgs84)
       .sel(band=1)
       .to_pandas()
       .stack()
       .reset_index()
-      .rename(columns={'x': 'lng', 'y': 'lat', 0: 'population'}))
+      .rename(columns={'x': 'lng', 'y': 'lat', 0: 'sett_code'}))
 
 # Ignore no data values
-pop_df = pop_df[pop_df.population>-200]
+sett_df = sett_df[sett_df.sett_code>-200]
 
-pop_gdf = gpd.GeoDataFrame(
-    pop_df, geometry=gpd.points_from_xy(pop_df.lng, pop_df.lat))
+sett_gdf = gpd.GeoDataFrame(
+    sett_df, geometry=gpd.points_from_xy(sett_df.lng, sett_df.lat))
 
-pop_gdf.set_crs('EPSG:4326',inplace=True)
+sett_gdf.set_crs('EPSG:4326',inplace=True)
 
 dk_gdf = gpd.GeoDataFrame({'geometry': dissolved_proj}, crs=dissolved_proj.crs)
 dk_gdf.to_crs('EPSG:4326',inplace=True)
 
-pop_gdf = gpd.sjoin(pop_gdf, dk_gdf, op='within', how='inner')
+sett_gdf = gpd.sjoin(sett_gdf, dk_gdf, op='within', how='inner')
 
-pf.plot_scatter(pop_gdf, metric_col='population', marker='.', colormap='Oranges')
+pf.plot_scatter(sett_gdf, metric_col='sett_code', marker='.', colormap='Oranges')
 
-
-# INDEX POPULATION AT VARIOUS H3 LEVELS
+#%%
+# INDEX SETTLEMENT DATA AT VARIOUS H3 LEVELS
 for res in range(7, 11):
     col_hex_id = "hex_id_{}".format(res)
     col_geom = "geometry_{}".format(res)
     msg_ = "At resolution {} -->  H3 cell id : {} and its geometry: {} "
     print(msg_.format(res, col_hex_id, col_geom))
 
-    pop_gdf[col_hex_id] = pop_gdf.apply(
+    sett_gdf[col_hex_id] = sett_gdf.apply(
                                         lambda row: h3.geo_to_h3(
                                                     lat = row['lat'],
                                                     lng = row['lng'],
@@ -214,7 +217,7 @@ for res in range(7, 11):
                                         axis = 1)
 
     # use h3.h3_to_geo_boundary to obtain the geometries of these hexagons
-    pop_gdf[col_geom] = pop_gdf[col_hex_id].apply(
+    sett_gdf[col_geom] = sett_gdf[col_hex_id].apply(
                                         lambda x: {"type": "Polygon",
                                                    "coordinates":
                                                    [h3.h3_to_geo_boundary(
@@ -224,7 +227,7 @@ for res in range(7, 11):
 #%%
 # Test plot
 hex_id_col = 'hex_id_7'
-grouped = pop_gdf.groupby(hex_id_col)['population'].sum().to_frame('population').reset_index()
+grouped = sett_gdf.groupby(hex_id_col)['settulation'].sum().to_frame('settulation').reset_index()
 
 grouped['lat'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[0])
 grouped['lng'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[1])
@@ -238,9 +241,9 @@ grouped['hex_geometry'] = grouped[hex_id_col].apply(
                             }
                 )
 
-grouped.plot.scatter(x='lng',y='lat',c='population',marker='o',edgecolors='none',colormap='Oranges',figsize=(30,20))
+grouped.plot.scatter(x='lng',y='lat',c='settulation',marker='o',edgecolors='none',colormap='Oranges',figsize=(30,20))
 plt.xticks([], []); plt.yticks([], []);
-plt.title('hex-grid: population');
+plt.title('hex-grid: settulation');
 
 #%%
 # TODO: Save to file
