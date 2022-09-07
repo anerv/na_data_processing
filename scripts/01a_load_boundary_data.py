@@ -40,13 +40,13 @@ useful_cols = ['id.lokalid', 'status', 'geometristatus',
 
 muni = muni[useful_cols]
 
-grid = gpd.read_file(grid_fp)
+# grid = gpd.read_file(grid_fp)
 
-grid = grid.set_crs(crs, allow_override=True)
+# grid = grid.set_crs(crs, allow_override=True)
 
-assert grid.crs == crs
+# assert grid.crs == crs
 
-grid.columns = grid.columns.str.lower()
+# grid.columns = grid.columns.str.lower()
 
 #%%
 connection = dbf.connect_pg(db_name, db_user, db_password)
@@ -56,7 +56,7 @@ engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 #%%
 dbf.to_postgis(geodataframe=muni, table_name='muni_boundaries', engine=engine)
 
-dbf.to_postgis(grid, 'grid', engine)
+# dbf.to_postgis(grid, 'grid', engine)
 
 #%%
 

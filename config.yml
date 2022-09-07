@@ -3,7 +3,7 @@
 use_postgres: True
 
 osm_fp: '../data/raw/osm/kbhaug22.osm.pbf' # '../data/osm/custom_files/denmark-latest.osm.pbf' 
-geodk_fp: '../data/geodk/vejmidte_brudt.gpkg'
+geodk_fp: '../data/raw/geodk/VEJMIDTE_BRUDT.shp'
 geodk_id_col: 'fot_id'
 pop_fp_1: '../data/raw/pop/GHS_POP_E2020_GLOBE_R2022A_54009_100_V1_0_R3_C19/GHS_POP_E2020_GLOBE_R2022A_54009_100_V1_0_R3_C19.tif'
 pop_fp_2: '../data/raw/pop/GHS_POP_E2020_GLOBE_R2022A_54009_100_V1_0_R3_C20/GHS_POP_E2020_GLOBE_R2022A_54009_100_V1_0_R3_C20.tif'
@@ -22,8 +22,6 @@ db_password: 'aneitu'
 study_area: 'DK'
 
 muni_fp: '../data/muni_boundary.gpkg'
-grid_fp: '../data/DKgrid_SHP_UTM32-ETRS89/DKN_1km_euref89.shp'
-
 
 quality_check: True
 quality_data: '../data/.json' # Data to be used for quality metrics for data matching
