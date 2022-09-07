@@ -15,7 +15,9 @@ mkdir data
 
 --- scp -r /local/directory remote_username@10.10.0.2:/remote/directory
 
-scp -r /Users/anev/'OneDrive - ITU'/RESEARCH/NA_data_processing /home/anev/na_data
+scp -r /Users/anev/'OneDrive - ITU'/RESEARCH/NA_data_processing/scripts anev@front:/home/anev/na_data
+
+scp -r /Users/anev/'OneDrive - ITU'/RESEARCH/NA_data_processing/scripts anev@hpc.itu.dk:/home/anev/na_data
 
 scp -r /Users/anev/'OneDrive - ITU/RESEARCH'/NA_data_processing/scripts /home/anev/na_data
 scp -r /Users/anev/'OneDrive - ITU/RESEARCH'/NA_data_processing/src 
@@ -26,3 +28,5 @@ eval "$(conda shell.bash hook)"
 
 conda activate na_data_hpc
 pip install -e .
+
+scp -r /Users/anev/Desktop/test.rtf anev@front:/home/anev/na_data
