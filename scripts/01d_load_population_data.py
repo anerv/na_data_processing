@@ -1,7 +1,5 @@
 '''
 TODO:
-- clip to DK extent
-- create H3 polygons at resolution XX
 - Classify as urban/non-urban
 - Convert to polygons classified as urban/non-urban
     - load to postgres
@@ -20,6 +18,7 @@ import matplotlib.pyplot as plt
 import json
 import pickle
 from src import db_functions as dbf
+from src import plotting_functions as pf
 from timeit import default_timer as timer
 from rasterio.plot import show
 from rasterio.merge import merge
@@ -60,47 +59,94 @@ out_meta.update({
     "height": mosaic.shape[1],
     "width": mosaic.shape[2],
     "transform": out_trans,
-    "crs": pop_src_1.crs.data # TODO
+    "crs": pop_src_1.crs
     }
 )
-merged_fp = '../data/pop/merged_pop_raster.tif'
+merged_fp = '../data/intermediary/pop/merged_pop_raster.tif'
 with rasterio.open(merged_fp, "w", **out_meta) as dest:
     dest.write(mosaic)
 
-# RELOAD
-mosaic = rasterio.open(merged_fp)
+merged = rasterio.open(merged_fp)
 
-# CLIP TO DK EXTENT
-minx, miny = 6, 54
-maxx, maxy = 16, 57.9
-bbox = box(minx, miny, maxx, maxy)
-geo = gpd.GeoDataFrame({'geometry': bbox}, index=[0], crs='EPSG:4326')
-geo = geo.to_crs(crs=pop_src_1.crs.data)
+# Load DK boundaries
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-bb_coords = [json.loads(geo.to_json())['features'][0]['geometry']]
+get_muni = 'SELECT navn, kommunekode, geometry FROM muni_boundaries'
 
-clipped, out_transform = mask(mosaic, shapes=bb_coords, crop=True)
+muni = gpd.GeoDataFrame.from_postgis(get_muni, engine, geom_col='geometry' )
 
-out_meta = mosaic.meta.copy()
+dissolved = muni.dissolve()
+dissolved_buffer = dissolved.buffer(500)
+
+dissolved_proj = dissolved_buffer.to_crs(merged.crs)
+convex = dissolved_proj.convex_hull
+
+geo = gpd.GeoDataFrame({'geometry': convex[0]}, index=[0], crs=merged.crs)
+
+coords = [json.loads(geo.to_json())['features'][0]['geometry']]
+
+clipped, out_transform = mask(merged, shapes=coords, crop=True)
+
+out_meta = merged.meta.copy()
 
 out_meta.update({
     "driver": "GTiff",
     "height": clipped.shape[1],
     "width": clipped.shape[2],
-    "transform": out_trans,
-    "crs": pop_src_1.crs.data # TODO
+    "transform": out_transform,
+    "crs": merged.crs
     }
 )
-
-clipped_fp = '../data/pop/clipped_pop_raster.tif'
+clipped_fp = '../data/intermediary/pop/clipped_pop_raster.tif'
 with rasterio.open(clipped_fp, "w", **out_meta) as dest:
     dest.write(clipped)
 
-# REPROJECT # TODO: Download data in correct projection
-dst_crs = 'EPSG:4326'
-proj_fp = '../data/pop/reproj_pop_raster.tif'
 
-with rasterio.open(clipped_fp) as src:
+# RESAMPLE TO GRID SIZE OF 400 meters
+
+downscale_factor = 1/4
+
+with rasterio.open(clipped_fp) as dataset:
+
+    # resample data to target shape
+    resampled = dataset.read(
+        out_shape=(
+            dataset.count,
+            int(dataset.height * downscale_factor),
+            int(dataset.width * downscale_factor)
+        ),
+        resampling=Resampling.bilinear
+    )
+
+    # scale image transform
+    out_transform = dataset.transform * dataset.transform.scale(
+        (dataset.width / resampled.shape[-1]),
+        (dataset.height / resampled.shape[-2])
+    )
+
+out_meta.update({
+    "driver": "GTiff",
+    "height": resampled.shape[1],
+    "width": resampled.shape[2],
+    "transform": out_transform,
+    "crs": merged.crs
+    }
+)
+
+resamp_fp = '../data/intermediary/pop/resampled_pop_raster.tif'
+with rasterio.open(resamp_fp, "w", **out_meta) as dest:
+    dest.write(resampled)
+
+test = rasterio.open(resamp_fp)
+assert round(test.res[0]) == 400
+assert round(test.res[1]) == 400
+
+
+# REPROJECT TO CRS USED BY H3
+dst_crs = 'EPSG:4326'
+proj_fp_wgs84 = '../data/intermediary/pop/reproj_pop_raster_wgs84.tif'
+
+with rasterio.open(resamp_fp) as src:
     transform, width, height = calculate_default_transform(
         src.crs, dst_crs, src.width, src.height, *src.bounds)
     kwargs = src.meta.copy()
@@ -111,7 +157,7 @@ with rasterio.open(clipped_fp) as src:
         'height': height
     })
 
-    with rasterio.open(proj_fp, 'w', **kwargs) as dst:
+    with rasterio.open(proj_fp_wgs84, 'w', **kwargs) as dst:
         for i in range(1, src.count + 1):
             reproject(
                 source=rasterio.band(src, i),
@@ -120,49 +166,87 @@ with rasterio.open(clipped_fp) as src:
                 src_crs=src.crs,
                 dst_transform=transform,
                 dst_crs=dst_crs,
-                resampling=Resampling.bilinear) # TODO: Should I use average?
+                resampling=Resampling.bilinear)
 
+
+test = rasterio.open(proj_fp_wgs84)
+assert test.crs.to_string() == 'EPSG:4326'
+
+print('Population data has been merged, clipped, reprojected and downsampled!')
 #%%
+# COMBINE WITH H3 DATA # TODO 
 
-# TODO: Combine with H3 data
-
-df = (rioxarray.open_rasterio(proj_fp)
+pop_df = (rioxarray.open_rasterio(proj_fp_wgs84)
       .sel(band=1)
       .to_pandas()
       .stack()
       .reset_index()
       .rename(columns={'x': 'lng', 'y': 'lat', 0: 'population'}))
 
-# ignore the missing values
-df = df[df.population>-200]
+# Ignore no data values
+pop_df = pop_df[pop_df.population>-200]
 
-def plot_scatter(df, metric_col, x='lng', y='lat', marker='.', alpha=1, figsize=(16,12), colormap='viridis'):    
-    df.plot.scatter(x=x, y=y, c=metric_col, title=metric_col
-                    , edgecolors='none', colormap=colormap, marker=marker, alpha=alpha, figsize=figsize);
-    plt.xticks([], []); plt.yticks([], [])
+pop_gdf = gpd.GeoDataFrame(
+    pop_df, geometry=gpd.points_from_xy(pop_df.lng, pop_df.lat))
 
-plot_scatter(df, metric_col='population', marker='.', colormap='gray')
+pop_gdf.set_crs('EPSG:4326',inplace=True)
+
+dk_gdf = gpd.GeoDataFrame({'geometry': dissolved_proj}, crs=dissolved_proj.crs)
+dk_gdf.to_crs('EPSG:4326',inplace=True)
+
+pop_gdf = gpd.sjoin(pop_gdf, dk_gdf, op='within', how='inner')
+
+pf.plot_scatter(pop_gdf, metric_col='population', marker='.', colormap='Oranges')
 
 #%%
+# INDEX POPULATION AT VARIOUS H3 LEVELS
+for res in range(7, 11):
+    col_hex_id = "hex_id_{}".format(res)
+    col_geom = "geometry_{}".format(res)
+    msg_ = "At resolution {} -->  H3 cell id : {} and its geometry: {} "
+    print(msg_.format(res, col_hex_id, col_geom))
+
+    pop_gdf[col_hex_id] = pop_gdf.apply(
+                                        lambda row: h3.geo_to_h3(
+                                                    lat = row['lat'],
+                                                    lng = row['lng'],
+                                                    resolution = res),
+                                        axis = 1)
+
+    # use h3.h3_to_geo_boundary to obtain the geometries of these hexagons
+    pop_gdf[col_geom] = pop_gdf[col_hex_id].apply(
+                                        lambda x: {"type": "Polygon",
+                                                   "coordinates":
+                                                   [h3.h3_to_geo_boundary(
+                                                       h=x, geo_json=True)]
+                                                   }
+                                         )
+#%%
+# Test plot
+hex_id_col = 'hex_id_7'
+grouped = pop_gdf.groupby(hex_col)['population'].sum().to_frame('population').reset_index()
+
+grouped['lat'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[0])
+grouped['lng'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[1])
+
+grouped['hex_geometry'] = grouped[hex_id_col].apply(
+                            lambda x: {
+                                "type": "Polygon",
+                                "coordinates":
+                                [h3.h3_to_geo_boundary(
+                                    h=x, geo_json=True)]
+                            }
+                )
+
+grouped.plot.scatter(x='lng',y='lat',c='population',marker='o',edgecolors='none',colormap='Oranges',figsize=(30,20))
+plt.xticks([], []); plt.yticks([], []);
+plt.title('hex-grid: population');
+
+#%%
+# We transform the coordinates to WGS 84, 
+# create the h3 indices at resolution 9 otherwise our map will be incomplete. 
+# We specify urban areas as pixels with values 21, 22, 23 or 30 
+# and values 11, 12, 13 as rural areas as specified in the data documentation. Pixels with value 10 are water pixels and they are removed. Finally, we assign hexagons at resolution 11 the corresponding urban-rural label depending on their parent h3 index. If a parent h3 index is from a water pixel we assign it as a rural hexagon.  
+
 
 # TODO: Vectorize - raster or H3?
-
-
-#%%
-APERTURE_SIZE = 9
-hex_col = 'hex'+str(APERTURE_SIZE)
-
-# find hexs containing the points
-df[hex_col] = df.apply(lambda x: h3.geo_to_h3(x.lat,x.lng,APERTURE_SIZE),1)
-
-# calculate elevation average per hex
-df_dem = df.groupby(hex_col)['elevation'].mean().to_frame('elevation').reset_index()
-
-#find center of hex for visualization
-df_dem['lat'] = df_dem[hex_col].apply(lambda x: h3.h3_to_geo(x)[0])
-df_dem['lng'] = df_dem[hex_col].apply(lambda x: h3.h3_to_geo(x)[1])
-
-# plot the hexes
-plot_scatter(df_dem, metric_col='elevation', marker='o')
-plt.title('hex-grid: elevation');
-#%%
