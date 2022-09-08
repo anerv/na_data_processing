@@ -1,20 +1,18 @@
 '''
-SETTLEMENT
-TODO:
-- find min h3 resolution
-- Classify as urban/non-urban
-- Convert to polygons classified as urban/non-urban
-    - load to postgres
-- Save H3 polygons with urban densities to file (for later use)
+SETTLEMENT (URBAN/RURAL DATA)
+
+rural = [11,12]
+semi_rural = [13]
+sub_semi_urban = [21,22]
+urban = [23,30]
 
 '''
 
 #%%
-import h3
 import matplotlib.pyplot as plt
 import rasterio
 import geopandas as gpd
-import pandas as pd
+import pandas as pd 
 import yaml
 import matplotlib.pyplot as plt
 import json
@@ -25,7 +23,11 @@ from rasterio.plot import show
 from rasterio.merge import merge
 from rasterio.mask import mask
 from rasterio.warp import calculate_default_transform, reproject, Resampling
-import rioxarray
+from rasterio.plot import show_hist
+import rioxarray as rxr
+import h3
+from shapely.geometry import Polygon
+
 
 with open(r'../config.yml') as file:
 
@@ -67,7 +69,6 @@ with rasterio.open(merged_fp, "w", **out_meta) as dest:
 
 merged = rasterio.open(merged_fp)
 
-#%%
 # Load DK boundaries
 engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
@@ -102,45 +103,23 @@ with rasterio.open(clipped_fp, "w", **out_meta) as dest:
     dest.write(clipped)
 
 #%%
+# # FILTER OUT NA DATA AND WATER
+# clipped_sett = rxr.open_rasterio(clipped_fp)
 
-# RESAMPLE TO GRID SIZE OF 400 meters
+# # Filter out no data values
+# sett_masked = clipped_sett.where(clipped_sett != -200)
 
-# downscale_factor = 1/4
+# sett_masked.plot.hist()
 
-# with rasterio.open(clipped_fp) as dataset:
+# # Filter out water values
+# sett_masked = sett_masked.where(sett_masked !=10)
 
-#     # resample data to target shape
-#     resampled = dataset.read(
-#         out_shape=(
-#             dataset.count,
-#             int(dataset.height * downscale_factor),
-#             int(dataset.width * downscale_factor)
-#         ),
-#         resampling=Resampling.bilinear
-#     )
+# sett_masked.plot.hist()
 
-#     # scale image transform
-#     out_transform = dataset.transform * dataset.transform.scale(
-#         (dataset.width / resampled.shape[-1]),
-#         (dataset.height / resampled.shape[-2])
-#     )
+# sett_masked.plot()
 
-# out_meta.update({
-#     "driver": "GTiff",
-#     "height": resampled.shape[1],
-#     "width": resampled.shape[2],
-#     "transform": out_transform,
-#     "crs": merged.crs
-#     }
-# )
-
-# resamp_fp = '../data/intermediary/settlement/resampled_sett_raster.tif'
-# with rasterio.open(resamp_fp, "w", **out_meta) as dest:
-#     dest.write(resampled)
-
-# test = rasterio.open(resamp_fp)
-# assert round(test.res[0]) == 400
-# assert round(test.res[1]) == 400
+# masked_fp = '../data/intermediary/settlement/sett_masked.tiff'
+# sett_masked.rio.to_raster(masked_fp)
 
 
 # REPROJECT TO CRS USED BY H3
@@ -156,7 +135,7 @@ with rasterio.open(clipped_fp) as src:
         'transform': transform,
         'width': width,
         'height': height
-    })
+    })                                                                                                                                                                                                                                                                                                                                                                                                             
 
     with rasterio.open(proj_fp_wgs84, 'w', **kwargs) as dst:
         for i in range(1, src.count + 1):
@@ -167,27 +146,28 @@ with rasterio.open(clipped_fp) as src:
                 src_crs=src.crs,
                 dst_transform=transform,
                 dst_crs=dst_crs,
-                resampling=Resampling.bilinear)
+                resampling=Resampling.mode) # Using the most often appearing value
 
 
 test = rasterio.open(proj_fp_wgs84)
 assert test.crs.to_string() == 'EPSG:4326'
 
-print('Settlement data has been merged, clipped and reprojected!')
+print('Settlement data has been merged, clipped,and reprojected!')
+
 
 #%%
-# TODO: Find max level of H3 to be used!
 # COMBINE WITH H3 DATA
+# We use H3 hexagons at level 7, to avoid blank spots in the H3 cover
 
-sett_df = (rioxarray.open_rasterio(proj_fp_wgs84)
+sett_df = (rxr.open_rasterio(proj_fp_wgs84)
       .sel(band=1)
       .to_pandas()
       .stack()
       .reset_index()
       .rename(columns={'x': 'lng', 'y': 'lat', 0: 'sett_code'}))
 
-# Ignore no data values
 sett_df = sett_df[sett_df.sett_code>-200]
+sett_df = sett_df[sett_df.sett_code!=10]
 
 sett_gdf = gpd.GeoDataFrame(
     sett_df, geometry=gpd.points_from_xy(sett_df.lng, sett_df.lat))
@@ -198,12 +178,13 @@ dk_gdf = gpd.GeoDataFrame({'geometry': dissolved_proj}, crs=dissolved_proj.crs)
 dk_gdf.to_crs('EPSG:4326',inplace=True)
 
 sett_gdf = gpd.sjoin(sett_gdf, dk_gdf, op='within', how='inner')
+sett_gdf.drop('index_right',axis=1,inplace=True)
 
 pf.plot_scatter(sett_gdf, metric_col='sett_code', marker='.', colormap='Oranges')
 
 #%%
 # INDEX SETTLEMENT DATA AT VARIOUS H3 LEVELS
-for res in range(7, 11):
+for res in range(6, 10):
     col_hex_id = "hex_id_{}".format(res)
     col_geom = "geometry_{}".format(res)
     msg_ = "At resolution {} -->  H3 cell id : {} and its geometry: {} "
@@ -225,14 +206,24 @@ for res in range(7, 11):
                                                    }
                                          )
 #%%
-# Test plot
+# Convert to H3 polygons
 hex_id_col = 'hex_id_7'
-grouped = sett_gdf.groupby(hex_id_col)['settulation'].sum().to_frame('settulation').reset_index()
 
-grouped['lat'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[0])
-grouped['lng'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[1])
+grouped = sett_gdf.groupby(hex_id_col)
 
-grouped['hex_geometry'] = grouped[hex_id_col].apply(
+hex_sett_code = {}
+
+for name, g in grouped:
+    hex_sett_code[name] = g.sett_code.value_counts().idxmax()
+
+h3_groups = pd.DataFrame.from_dict(hex_sett_code,orient='index',columns=['sett_code']).reset_index()
+
+h3_groups.rename({'index':hex_id_col},axis=1, inplace=True)
+
+h3_groups['lat'] = h3_groups[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[0])
+h3_groups['lng'] = h3_groups[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[1])
+
+h3_groups['hex_geometry'] = h3_groups[hex_id_col].apply(
                             lambda x: {
                                 "type": "Polygon",
                                 "coordinates":
@@ -241,9 +232,34 @@ grouped['hex_geometry'] = grouped[hex_id_col].apply(
                             }
                 )
 
-grouped.plot.scatter(x='lng',y='lat',c='settulation',marker='o',edgecolors='none',colormap='Oranges',figsize=(30,20))
+#%%
+h3_groups.plot.scatter(x='lng',y='lat',c='sett_code',marker='o',edgecolors='none',colormap='Oranges',figsize=(30,20))
 plt.xticks([], []); plt.yticks([], []);
 plt.title('hex-grid: settulation');
 
 #%%
-# TODO: Save to file
+# Create polygon geometries
+h3_groups['geometry'] = h3_groups['hex_geometry'].apply(lambda x: Polygon(list(x['coordinates'][0])))
+
+h3_gdf = gpd.GeoDataFrame(h3_groups, geometry='geometry',crs='EPSG:4326')
+
+# Export data
+h3_gdf.to_file('../data/intermediary/settlement/h3_7_polygons.gpkg')
+
+#%%
+print('Saving data to Postgres!')
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+
+dbf.to_postgis(geodataframe=h3_gdf, table_name='settlement_polygons', engine=engine)
+
+q = 'SELECT hex_id_7, sett_code FROM settlement_polygons LIMIT 10;'
+
+test = dbf.run_query_pg(q, connection)
+
+print(test)
+
+connection.close()
+# %%
