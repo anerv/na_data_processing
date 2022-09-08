@@ -18,7 +18,7 @@ from rasterio.plot import show
 from rasterio.merge import merge
 from rasterio.mask import mask
 from rasterio.warp import calculate_default_transform, reproject, Resampling
-import rioxarray
+import rioxarray as rxr
 
 with open(r'../config.yml') as file:
 
@@ -169,7 +169,7 @@ print('Population data has been merged, clipped, reprojected and downsampled!')
 
 # COMBINE WITH H3 DATA
 
-pop_df = (rioxarray.open_rasterio(proj_fp_wgs84)
+pop_df = (rxr.open_rasterio(proj_fp_wgs84)
       .sel(band=1)
       .to_pandas()
       .stack()
