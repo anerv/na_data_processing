@@ -1,5 +1,7 @@
 '''
 POPULATION H3 HEX GRID
+
+# TODO: Use data in WGS84
 '''
 
 #%%
@@ -135,6 +137,7 @@ assert round(test.res[0]) == 400
 assert round(test.res[1]) == 400
 
 
+# TODO: Not necessary
 # REPROJECT TO CRS USED BY H3
 dst_crs = 'EPSG:4326'
 proj_fp_wgs84 = '../data/intermediary/pop/reproj_pop_raster_wgs84.tif'
