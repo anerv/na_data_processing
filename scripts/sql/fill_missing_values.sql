@@ -101,8 +101,7 @@ UPDATE osm_edges_simplified
 ;
 
  -- is this safe to assume??
-
---UPDATE osm_edges_simplified SET lit_as = 'yes' WHERE along_street = 'true' IF -- intersects with urban area??
+--UPDATE osm_edges_simplified SET lit_as = 'yes' WHERE along_street = 'true' AND urban = 'urban';
 
 -- SPEED 
 -- UPDATE osm_edges_simplified SET speed_as = speed;
