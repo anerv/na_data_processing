@@ -1,5 +1,5 @@
 '''
-Classifies all OSM edges and fills out missing values
+Classifies all OSM edges and intersection nodes and fills out missing values for edges
 '''
 
 #%%
@@ -27,6 +27,24 @@ with open(r'../config.yml') as file:
 print('Settings loaded!')
 #%%
 
+print('Classifying intersection nodes!')
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+q = 'sql/intersections.sql'
+
+inter = dbf.run_query_pg(q, connection)
+
+q = 'SELECT osmid, count, inter_type FROM intersections WHERE inter_type IS NOT NULL LIMIT 10;'
+
+test = dbf.run_query_pg(q, connection)
+
+print(test)
+
+connection.close()
+
+#%%
+
 print('Classifying edges...')
 
 connection = dbf.connect_pg(db_name, db_user, db_password)
@@ -44,10 +62,6 @@ q = "SELECT edge_id, protected FROM osm_edges_simplified WHERE protected = 'true
 test = dbf.run_query_pg(q, connection)
 
 print(test)
-
-#%%
-# TODO: Classify as urban/non-urban
-
 
 
 #%%
