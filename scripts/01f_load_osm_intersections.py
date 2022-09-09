@@ -115,20 +115,3 @@ connection.close()
 #     pickle.dump(intersections, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 #%%
-
-print('Classifying intersection nodes!')
-
-connection = dbf.connect_pg(db_name, db_user, db_password)
-
-q = 'sql/intersections.sql'
-
-inter = dbf.run_query_pg(q, connection)
-
-q = 'SELECT osmid, count, inter_type FROM intersections WHERE inter_type IS NOT NULL LIMIT 10;'
-
-test = dbf.run_query_pg(q, connection)
-
-print(test)
-
-connection.close()
-#%%
