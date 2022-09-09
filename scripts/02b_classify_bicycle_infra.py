@@ -9,14 +9,15 @@ from src import db_functions as dbf
 #%%
 
 with open(r'../config.yml') as file:
-    parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
 
-    use_postgres = parsed_yaml_file['use_postgres']
+    parsed_yaml_file = yaml.load(file, Loader=yaml.FullLoader)
 
     osm_fp = parsed_yaml_file['osm_fp']
     geodk_fp = parsed_yaml_file['geodk_fp']
 
     crs = parsed_yaml_file['CRS']
+
+    h3_urban_level = parsed_yaml_file['h3_urban_level']
 
     db_name = parsed_yaml_file['db_name']
     db_user = parsed_yaml_file['db_user']
@@ -63,6 +64,32 @@ test = dbf.run_query_pg(q, connection)
 
 print(test)
 
+#%%
+# Classify edges as urban/rural etc
+
+print('Classifying edges as urban/non-urban...')
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+create_view = f'''
+CREATE VIEW urban_nodes AS 
+(SELECT
+    polys.urban,
+    polys.urban_code,
+    nodes.osmid
+FROM urban_polygons_{h3_urban_level} AS polys
+JOIN osm_nodes_simplified AS nodes
+ON ST_Intersects(polys.geometry, nodes.geometry));
+'''
+
+view = dbf.run_query_pg(create_view, connection)
+
+classify_urban = 'sql/classify_urban_network.sql'
+classify = dbf.run_query_pg(classify_urban, connection)
+
+drop = dbf.run_query_pg('DROP VIEW urban_nodes;', connection)
+
+connection.close()
 
 #%%
 print('Interpolating missing attributes...')
