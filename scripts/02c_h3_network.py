@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import json
 import pickle
 from src import db_functions as dbf
+from src import graph_functions as gf
 from timeit import default_timer as timer
 
 with open(r'../config.yml') as file:
@@ -69,7 +70,7 @@ for res in range(7, 11):
                                                    [h3.h3_to_geo_boundary(
                                                        h=x, geo_json=True)]
                                                    }
-                                         )
+                                         ) 
 #%%                                   
 # PLOT NODE DENSITY
 osm_nodes.plot()
@@ -83,25 +84,59 @@ grouped.plot.scatter(x='long',y='lat',c='count',marker='o',edgecolors='none',col
 plt.xticks([], []); plt.yticks([], []);
 # %%
 
-#%%
 
 #%%
-# INDEX EDGES AT VARIOUS H3 LEVELS (how many??)
+# INDEX EDGES AT VARIOUS H3 LEVELS - or just at one? E.g. 9
+h3_res_level = 9
 
-h3_set = set()
-for geo in data['features']:
-    tmp = shape(geo['geometry'])
-    if len(mapping(tmp)['coordinates']) == 1:
-        h3_set.add(h3.geo_to_h3(*mapping(tmp)['coordinates'], resolution = 11))
-    for i in range(len(mapping(tmp)['coordinates']) - 1):
-        h3s = h3.h3_line( h3.geo_to_h3(*mapping(tmp)['coordinates'][i], resolution = 11) , h3.geo_to_h3(*mapping(tmp)['coordinates'][i+1], resolution = 11) )
-        h3_set.update(h3s)
+def coords_to_h3(coords, h3_res):
 
-h3_set = set()
-for geo in data['features']:
-    tmp = shape(geo['geometry'])
-    if len(mapping(tmp)['coordinates']) == 1:
-        h3_set.add(h3.geo_to_h3(*mapping(tmp)['coordinates'], resolution = 11))
-    for i in range(len(mapping(tmp)['coordinates']) - 1):
-        h3s = h3.h3_line( h3.geo_to_h3(*mapping(tmp)['coordinates'][i], resolution = 11) , h3.geo_to_h3(*mapping(tmp)['coordinates'][i+1], resolution = 11) )
-        h3_set.update(h3s)
+    h3_indices_set = set()
+
+    for c in coords:
+        # Index point to h3 at h3_res
+        index = h3.geo_to_h3(lat=c[1],lng=c[0], resolution = h3_res)
+        # Add index to set
+        h3_indices_set.add(index)
+
+    h3_indices = list(h3_indices_set)
+
+    return h3_indices
+
+def h3_fill_line():
+
+    # Function for filling out h3 cells between non-adjacent cells
+
+    pass
+
+def h3_index_to_geometry(h3_indices):
+
+    for h in h3_indices:
+        
+
+    pass
+
+# Create column with edge coordinates
+osm_edges['coords'] = osm_edges['geometry'].apply(lambda x: gf.return_coord_list(x))
+osm_edges[f'h3_index_{h3_res_level}'] = osm_edges['coords'].apply(lambda x: coords_to_h3(x,h3_res_level))
+
+
+#%%
+coords = gf.return_coord_list(osm_edges.loc[41504,'geometry'])
+
+h3_index = coords_to_h3(coords,13)
+
+polygon_coords = []
+for hi in h3_index:
+    h3_coords = h3.h3_to_geo_boundary(h=hi, geo_json=True)
+    polygon_coords.append(h3_coords)
+                        
+# %%
+polys = [Polygon(p) for p in polygon_coords]
+
+gdf = gpd.GeoDataFrame(geometry=polys,crs=osm_edges.crs)
+# %%
+fig, ax = plt.subplots()
+gdf.plot(ax=ax)
+osm_edges.loc[osm_edges.edge_id==110372].plot(ax=ax,color='red')
+# %%

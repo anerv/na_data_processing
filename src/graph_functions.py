@@ -5,6 +5,14 @@ from shapely.ops import linemerge
 #import momepy 
 import osmnx as ox
 
+def return_coord_list(geometry):
+
+    x,y = geometry.coords.xy
+
+    coords = list(zip(x,y))
+
+    return coords
+
 
 def update_edge_data(G, attr, org_value, new_value, di=True):
 
