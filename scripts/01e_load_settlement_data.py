@@ -1,11 +1,12 @@
 '''
-SETTLEMENT (URBAN/RURAL DATA)
+urban (URBAN/RURAL DATA)
 
 rural = [11,12]
 semi_rural = [13]
 sub_semi_urban = [21,22]
 urban = [23,30]
 
+# TODO: Use data in WGS84 from beginning
 '''
 
 #%%
@@ -35,8 +36,8 @@ with open(r'../config.yml') as file:
 
     crs = parsed_yaml_file['CRS']
 
-    settlement_fp_1 = parsed_yaml_file['settlement_fp_1']
-    settlement_fp_2 = parsed_yaml_file['settlement_fp_2']
+    urban_fp_1 = parsed_yaml_file['urban_fp_1']
+    urban_fp_2 = parsed_yaml_file['urban_fp_2']
 
     db_name = parsed_yaml_file['db_name']
     db_user = parsed_yaml_file['db_user']
@@ -47,23 +48,23 @@ with open(r'../config.yml') as file:
 print('Settings loaded!')
 #%%
 # LOAD DATA
-sett_src_1 = rasterio.open(settlement_fp_1)
-sett_src_2 = rasterio.open(settlement_fp_2)
+urban_src_1 = rasterio.open(urban_fp_1)
+urban_src_2 = rasterio.open(urban_fp_2)
 
 # MERGE RASTERS
-mosaic, out_trans = merge([sett_src_1, sett_src_2])
+mosaic, out_trans = merge([urban_src_1, urban_src_2])
 
-out_meta = sett_src_1.meta.copy()
+out_meta = urban_src_1.meta.copy()
 
 out_meta.update({
     "driver": "GTiff",
     "height": mosaic.shape[1],
     "width": mosaic.shape[2],
     "transform": out_trans,
-    "crs": sett_src_1.crs
+    "crs": urban_src_1.crs
     }
 )
-merged_fp = '../data/intermediary/settlement/merged_sett_raster.tif'
+merged_fp = '../data/intermediary/urban/merged_urban_raster.tif'
 with rasterio.open(merged_fp, "w", **out_meta) as dest:
     dest.write(mosaic)
 
@@ -98,7 +99,7 @@ out_meta.update({
     "crs": merged.crs
     }
 )
-clipped_fp = '../data/intermediary/settlement/clipped_sett_raster.tif'
+clipped_fp = '../data/intermediary/urban/clipped_urban_raster.tif'
 with rasterio.open(clipped_fp, "w", **out_meta) as dest:
     dest.write(clipped)
 
@@ -107,24 +108,24 @@ with rasterio.open(clipped_fp, "w", **out_meta) as dest:
 # clipped_sett = rxr.open_rasterio(clipped_fp)
 
 # # Filter out no data values
-# sett_masked = clipped_sett.where(clipped_sett != -200)
+# urban_masked = clipped_sett.where(clipped_sett != -200)
 
-# sett_masked.plot.hist()
+# urban_masked.plot.hist()
 
 # # Filter out water values
-# sett_masked = sett_masked.where(sett_masked !=10)
+# urban_masked = urban_masked.where(urban_masked !=10)
 
-# sett_masked.plot.hist()
+# urban_masked.plot.hist()
 
-# sett_masked.plot()
+# urban_masked.plot()
 
-# masked_fp = '../data/intermediary/settlement/sett_masked.tiff'
-# sett_masked.rio.to_raster(masked_fp)
+# masked_fp = '../data/intermediary/urban/urban_masked.tiff'
+# urban_masked.rio.to_raster(masked_fp)
 
-
+# TODO - not necessary with new data
 # REPROJECT TO CRS USED BY H3
 dst_crs = 'EPSG:4326'
-proj_fp_wgs84 = '../data/intermediary/settlement/reproj_sett_raster_wgs84.tif'
+proj_fp_wgs84 = '../data/intermediary/urban/reproj_urban_raster_wgs84.tif'
 
 with rasterio.open(clipped_fp) as src:
     transform, width, height = calculate_default_transform(
@@ -152,45 +153,45 @@ with rasterio.open(clipped_fp) as src:
 test = rasterio.open(proj_fp_wgs84)
 assert test.crs.to_string() == 'EPSG:4326'
 
-print('Settlement data has been merged, clipped,and reprojected!')
+print('urban data has been merged, clipped,and reprojected!')
 
 
 #%%
 # COMBINE WITH H3 DATA
-# We use H3 hexagons at level 7, to avoid blank spots in the H3 cover
+# We use H3 hexagons level 7 to avoid blank spots in the H3 cover
 
-sett_df = (rxr.open_rasterio(proj_fp_wgs84)
+urban_df = (rxr.open_rasterio(proj_fp_wgs84)
       .sel(band=1)
       .to_pandas()
       .stack()
       .reset_index()
-      .rename(columns={'x': 'lng', 'y': 'lat', 0: 'sett_code'}))
+      .rename(columns={'x': 'lng', 'y': 'lat', 0: 'urban_code'}))
 
-sett_df = sett_df[sett_df.sett_code>-200]
-sett_df = sett_df[sett_df.sett_code!=10]
+urban_df = urban_df[urban_df.urban_code>-200]
+urban_df = urban_df[urban_df.urban_code!=10]
 
-sett_gdf = gpd.GeoDataFrame(
-    sett_df, geometry=gpd.points_from_xy(sett_df.lng, sett_df.lat))
+urban_gdf = gpd.GeoDataFrame(
+    urban_df, geometry=gpd.points_from_xy(urban_df.lng, urban_df.lat))
 
-sett_gdf.set_crs('EPSG:4326',inplace=True)
+urban_gdf.set_crs('EPSG:4326',inplace=True)
 
 dk_gdf = gpd.GeoDataFrame({'geometry': dissolved_proj}, crs=dissolved_proj.crs)
 dk_gdf.to_crs('EPSG:4326',inplace=True)
 
-sett_gdf = gpd.sjoin(sett_gdf, dk_gdf, op='within', how='inner')
-sett_gdf.drop('index_right',axis=1,inplace=True)
+urban_gdf = gpd.sjoin(urban_gdf, dk_gdf, op='within', how='inner')
+urban_gdf.drop('index_right',axis=1,inplace=True)
 
-pf.plot_scatter(sett_gdf, metric_col='sett_code', marker='.', colormap='Oranges')
+pf.plot_scatter(urban_gdf, metric_col='urban_code', marker='.', colormap='Oranges')
 
 #%%
-# INDEX SETTLEMENT DATA AT VARIOUS H3 LEVELS
+# INDEX urban DATA AT VARIOUS H3 LEVELS
 for res in range(6, 10):
     col_hex_id = "hex_id_{}".format(res)
     col_geom = "geometry_{}".format(res)
     msg_ = "At resolution {} -->  H3 cell id : {} and its geometry: {} "
     print(msg_.format(res, col_hex_id, col_geom))
 
-    sett_gdf[col_hex_id] = sett_gdf.apply(
+    urban_gdf[col_hex_id] = urban_gdf.apply(
                                         lambda row: h3.geo_to_h3(
                                                     lat = row['lat'],
                                                     lng = row['lng'],
@@ -198,7 +199,7 @@ for res in range(6, 10):
                                         axis = 1)
 
     # use h3.h3_to_geo_boundary to obtain the geometries of these hexagons
-    sett_gdf[col_geom] = sett_gdf[col_hex_id].apply(
+    urban_gdf[col_geom] = urban_gdf[col_hex_id].apply(
                                         lambda x: {"type": "Polygon",
                                                    "coordinates":
                                                    [h3.h3_to_geo_boundary(
@@ -207,16 +208,21 @@ for res in range(6, 10):
                                          )
 #%%
 # Convert to H3 polygons
-hex_id_col = 'hex_id_7'
+res_level = 7
+hex_id_col = f'hex_id_{res_level}'
 
-grouped = sett_gdf.groupby(hex_id_col)
+# Choose the highest value (to avoid misclassifications of coastal areas)
+#h3_groups = urban_gdf.groupby(hex_id_col)['urban_code'].max().to_frame('urban_code').reset_index()
 
-hex_sett_code = {}
+# Method for choosing the most occuring value in hex grid cell
+grouped = urban_gdf.groupby(hex_id_col)
 
+hex_urban_code = {}
+ 
 for name, g in grouped:
-    hex_sett_code[name] = g.sett_code.value_counts().idxmax()
+    hex_urban_code[name] = g.urban_code.value_counts().idxmax()
 
-h3_groups = pd.DataFrame.from_dict(hex_sett_code,orient='index',columns=['sett_code']).reset_index()
+h3_groups = pd.DataFrame.from_dict(hex_urban_code,orient='index',columns=['urban_code']).reset_index()
 
 h3_groups.rename({'index':hex_id_col},axis=1, inplace=True)
 
@@ -232,8 +238,8 @@ h3_groups['hex_geometry'] = h3_groups[hex_id_col].apply(
                             }
                 )
 
-#%%
-h3_groups.plot.scatter(x='lng',y='lat',c='sett_code',marker='o',edgecolors='none',colormap='Oranges',figsize=(30,20))
+
+h3_groups.plot.scatter(x='lng',y='lat',c='urban_code',marker='o',edgecolors='none',colormap='Oranges',figsize=(30,20))
 plt.xticks([], []); plt.yticks([], []);
 plt.title('hex-grid: settulation');
 
@@ -244,18 +250,18 @@ h3_groups['geometry'] = h3_groups['hex_geometry'].apply(lambda x: Polygon(list(x
 h3_gdf = gpd.GeoDataFrame(h3_groups, geometry='geometry',crs='EPSG:4326')
 
 # Export data
-h3_gdf.to_file('../data/intermediary/settlement/h3_7_polygons.gpkg')
+h3_gdf.to_file(f'../data/intermediary/urban/h3_{res_level}_polygons.gpkg')
 
-#%%
 print('Saving data to Postgres!')
 
 connection = dbf.connect_pg(db_name, db_user, db_password)
 
 engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-dbf.to_postgis(geodataframe=h3_gdf, table_name='settlement_polygons', engine=engine)
+table_name = f'urban_polygons_{res_level}'
+dbf.to_postgis(geodataframe=h3_gdf, table_name=table_name, engine=engine)
 
-q = 'SELECT hex_id_7, sett_code FROM settlement_polygons LIMIT 10;'
+q = 'SELECT hex_id_7, urban_code FROM urban_polygons LIMIT 10;'
 
 test = dbf.run_query_pg(q, connection)
 
