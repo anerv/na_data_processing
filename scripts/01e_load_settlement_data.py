@@ -45,6 +45,8 @@ with open(r'../config.yml') as file:
     db_password = parsed_yaml_file['db_password']
     db_host = parsed_yaml_file['db_host']
     db_port = parsed_yaml_file['db_port']
+
+    h3_urban_level = parsed_yaml_file['h3_urban_level']
   
 print('Settings loaded!')
 #%%
@@ -209,8 +211,8 @@ for res in range(6, 10):
                                          )
 #%%
 # Convert to H3 polygons
-res_level = 7
-hex_id_col = f'hex_id_{res_level}'
+print(f'Creating hexagons at resolution {h3_urban_level}...')
+hex_id_col = f'hex_id_{h3_urban_level}'
 
 # Choose the highest value (to avoid misclassifications of coastal areas)
 #h3_groups = urban_gdf.groupby(hex_id_col)['urban_code'].max().to_frame('urban_code').reset_index()
@@ -251,7 +253,7 @@ h3_groups['geometry'] = h3_groups['hex_geometry'].apply(lambda x: Polygon(list(x
 h3_gdf = gpd.GeoDataFrame(h3_groups, geometry='geometry',crs='EPSG:4326')
 
 # Export data
-h3_gdf.to_file(f'../data/intermediary/urban/h3_{res_level}_polygons.gpkg')
+h3_gdf.to_file(f'../data/intermediary/urban/h3_{h3_urban_level}_polygons.gpkg')
 
 print('Saving data to Postgres!')
 
@@ -259,7 +261,7 @@ connection = dbf.connect_pg(db_name, db_user, db_password)
 
 engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
-table_name = f'urban_polygons_{res_level}'
+table_name = f'urban_polygons_{h3_urban_level}'
 dbf.to_postgis(geodataframe=h3_gdf, table_name=table_name, engine=engine)
 
 q = 'SELECT hex_id_7, urban_code FROM urban_polygons LIMIT 10;'
@@ -278,11 +280,11 @@ connection = dbf.connect_pg(db_name, db_user, db_password)
 engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 
 classify_polys = [
-    f"ALTER TABLE urban_polygons_{res_level} ADD COLUMN urban VARCHAR DEFAULT NULL;",
-    f"UPDATE urban_polygons_{res_level} SET urban = 'rural' WHERE urban_code IN (11,12);"
-    f"UPDATE urban_polygons_{res_level} SET urban = 'semi-rural' WHERE urban_code = 13;"
-    f"UPDATE urban_polygons_{res_level} SET urban = 'sub-semi-urban' WHERE urban_code IN (21,22);"
-    f"UPDATE urban_polygons_{res_level} SET urban = 'urban' WHERE urban_code IN (23,30);"
+    f"ALTER TABLE urban_polygons_{h3_urban_level} ADD COLUMN urban VARCHAR DEFAULT NULL;",
+    f"UPDATE urban_polygons_{h3_urban_level} SET urban = 'rural' WHERE urban_code IN (11,12);"
+    f"UPDATE urban_polygons_{h3_urban_level} SET urban = 'semi-rural' WHERE urban_code = 13;"
+    f"UPDATE urban_polygons_{h3_urban_level} SET urban = 'sub-semi-urban' WHERE urban_code IN (21,22);"
+    f"UPDATE urban_polygons_{h3_urban_level} SET urban = 'urban' WHERE urban_code IN (23,30);"
 ]
 
 for c in classify_polys:
@@ -290,7 +292,7 @@ for c in classify_polys:
     classify = dbf.run_query_pg(c, connection)
 
 
-q = f'SELECT hex_id_{res_level}, urban_code, urban FROM urban_polygons_{res_level} LIMIT 10;'
+q = f'SELECT hex_id_{h3_urban_level}, urban_code, urban FROM urban_polygons_{h3_urban_level} LIMIT 10;'
 
 test = dbf.run_query_pg(q, connection)
 
