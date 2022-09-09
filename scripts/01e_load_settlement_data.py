@@ -1,6 +1,7 @@
 '''
-urban (URBAN/RURAL DATA)
+URBAN/RURAL DATA
 
+### Codes:
 rural = [11,12]
 semi_rural = [13]
 sub_semi_urban = [21,22]
@@ -269,3 +270,28 @@ print(test)
 
 connection.close()
 # %%
+
+print('Classifying urban polygons!')
+
+connection = dbf.connect_pg(db_name, db_user, db_password)
+
+engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
+
+classify_polys = [
+    f"ALTER TABLE urban_polygons_{res_level} ADD COLUMN urban VARCHAR DEFAULT NULL;",
+    f"UPDATE urban_polygons_{res_level} SET urban = 'rural' WHERE urban_code IN (11,12);"
+    f"UPDATE urban_polygons_{res_level} SET urban = 'semi-rural' WHERE urban_code = 13;"
+    f"UPDATE urban_polygons_{res_level} SET urban = 'sub-semi-urban' WHERE urban_code IN (21,22);"
+    f"UPDATE urban_polygons_{res_level} SET urban = 'urban' WHERE urban_code IN (23,30);"
+]
+
+for c in classify_polys:
+
+    classify = dbf.run_query_pg(c, connection)
+
+
+q = f'SELECT hex_id_{res_level}, urban_code, urban FROM urban_polygons_{res_level} LIMIT 10;'
+
+test = dbf.run_query_pg(q, connection)
+
+print(test)
