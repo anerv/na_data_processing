@@ -252,6 +252,8 @@ h3_groups['geometry'] = h3_groups['hex_geometry'].apply(lambda x: Polygon(list(x
 
 h3_gdf = gpd.GeoDataFrame(h3_groups, geometry='geometry',crs='EPSG:4326')
 
+h3_gdf.to_crs(crs, inplace=True)
+
 # Export data
 h3_gdf.to_file(f'../data/intermediary/urban/h3_{h3_urban_level}_polygons.gpkg')
 
@@ -264,7 +266,7 @@ engine = dbf.connect_alc(db_name, db_user, db_password, db_port=db_port)
 table_name = f'urban_polygons_{h3_urban_level}'
 dbf.to_postgis(geodataframe=h3_gdf, table_name=table_name, engine=engine)
 
-q = 'SELECT hex_id_7, urban_code FROM urban_polygons LIMIT 10;'
+q = f'SELECT hex_id_7, urban_code FROM urban_polygons_{h3_urban_level} LIMIT 10;'
 
 test = dbf.run_query_pg(q, connection)
 
@@ -297,3 +299,5 @@ q = f'SELECT hex_id_{h3_urban_level}, urban_code, urban FROM urban_polygons_{h3_
 test = dbf.run_query_pg(q, connection)
 
 print(test)
+
+# %%
