@@ -1,6 +1,9 @@
 '''
 Index network elements by h3 index
 
+# TODO: Return h3 index at level X for all edge ids and node ids
+# TODO: Export
+
 Method for getting all h3 cells at given level on the same component
 
 Method for finding distance between two H3 cells
@@ -18,6 +21,9 @@ from src import db_functions as dbf
 from src import graph_functions as gf
 from timeit import default_timer as timer
 from shapely.geometry import Polygon
+from src import matching_functions as mf
+import itertools
+from collections import Counter
 
 with open(r'../config.yml') as file:
 
@@ -43,52 +49,13 @@ get_osm_nodes = 'SELECT osmid, geometry FROM cycling_nodes;'
 osm_edges = gpd.GeoDataFrame.from_postgis(get_osm_edges, engine, geom_col='geometry')
 osm_nodes = gpd.GeoDataFrame.from_postgis(get_osm_nodes, engine, geom_col='geometry')
 
+osm_segments = mf.create_segment_gdf(osm_edges,10)
 #%%
 # Reproject to WGS84
 osm_nodes.to_crs('EPSG:4326',inplace=True)
 osm_edges.to_crs('EPSG:4326',inplace=True)
+osm_segments.to_crs('EPSG:4326',inplace=True)
 #%%
-# INDEX ALL NODES AT VARIOUS H3 LEVELS
-
-# index each data point into the spatial index of the specified resolution
-for res in range(7, 11):
-    col_hex_id = "hex_id_{}".format(res)
-    col_geom = "geometry_{}".format(res)
-    msg_ = "At resolution {} -->  H3 cell id : {} and its geometry: {} "
-    print(msg_.format(res, col_hex_id, col_geom))
-
-    osm_nodes[col_hex_id] = osm_nodes.apply(
-                                        lambda row: h3.geo_to_h3(
-                                                    lat = row['geometry'].y,
-                                                    lng = row['geometry'].x,
-                                                    resolution = res),
-                                        axis = 1)
-
-    # use h3.h3_to_geo_boundary to obtain the geometries of these hexagons
-    osm_nodes[col_geom] = osm_nodes[col_hex_id].apply(
-                                        lambda x: {"type": "Polygon",
-                                                   "coordinates":
-                                                   [h3.h3_to_geo_boundary(
-                                                       h=x, geo_json=True)]
-                                                   }
-                                         ) 
-#%%                                   
-# PLOT NODE DENSITY
-osm_nodes.plot()
-hex_id_col = 'hex_id_10'
-grouped = osm_nodes.groupby(hex_id_col).size().to_frame('count').reset_index()
-
-grouped['lat'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[0])
-grouped['long'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[1])
-
-grouped.plot.scatter(x='long',y='lat',c='count',marker='o',edgecolors='none',colormap='viridis',figsize=(30,20))
-plt.xticks([], []); plt.yticks([], []);
-# %%
-
-
-#%%
-# INDEX EDGES AT VARIOUS H3 LEVELS - or just at one? E.g. 9
-h3_res_level = 9
 
 def coords_to_h3(coords, h3_res):
 
@@ -102,13 +69,11 @@ def coords_to_h3(coords, h3_res):
 
     h3_indices = list(h3_indices_set)
 
+    # if len(h3_indices) == 1:
+
+    #     return h3_indices[0]
+
     return h3_indices
-
-def h3_fill_line():
-
-    # Function for filling out h3 cells between non-adjacent cells
-
-    pass
 
 def h3_index_to_geometry(h3_indices, shapely_polys=False):
 
@@ -128,20 +93,89 @@ def h3_index_to_geometry(h3_indices, shapely_polys=False):
     return polygon_coords
 
 
-# Create column with edge coordinates
-osm_edges['coords'] = osm_edges['geometry'].apply(lambda x: gf.return_coord_list(x))
-osm_edges[f'h3_index_{h3_res_level}'] = osm_edges['coords'].apply(lambda x: coords_to_h3(x,h3_res_level))
+def h3_fill_line(h3_edge_indices):
+
+    # Function for filling out h3 cells between non-adjacent cells
+
+    if len(h3_edge_indices) < 2:
+
+        return h3_edge_indices
+
+    h3_line = set()
+
+    h3_line.update(h3_edge_indices)
+
+    for i in range(0,len(h3_edge_indices)-1):
+
+        if h3.h3_indexes_are_neighbors(h3_edge_indices[i],h3_edge_indices[i+1]) == False:
+
+            missing_hexs = h3.h3_line(h3_edge_indices[i],h3_edge_indices[i+1])
+
+            h3_line.update(missing_hexs)
+
+    return list(h3_line)
 
 #%%
-coords = gf.return_coord_list(osm_edges.loc[41504,'geometry'])
+# INDEX EDGES AT VARIOUS H3 LEVELS - or just at one? E.g. 9
+h3_res_level = 11
+#%%
+# Create column with edge coordinates
+osm_segments['coords'] = osm_segments['geometry'].apply(lambda x: gf.return_coord_list(x))
+osm_segments[f'h3_index_{h3_res_level}'] = osm_segments['coords'].apply(lambda x: coords_to_h3(x,h3_res_level))
+osm_segments[f'filled_h3_index_{h3_res_level}'] = osm_segments[f'h3_index_{h3_res_level}'].apply(lambda x: h3_fill_line(x))
 
-h3_index = coords_to_h3(coords,13)
+#%%
+# PLOT EDGE DENSITY
 
-polys = h3_index_to_geometry(h3_index, shapely_polys=True)
+index_list = osm_segments[f'filled_h3_index_{h3_res_level}'].values
+test = list(itertools.chain(*index_list))
+counts = dict(Counter(test))
 
-gdf = gpd.GeoDataFrame(geometry=polys,crs=osm_edges.crs)
-# %%
-fig, ax = plt.subplots()
-gdf.plot(ax=ax)
-osm_edges.loc[osm_edges.edge_id==110372].plot(ax=ax,color='red')
+edge_df = pd.DataFrame.from_dict(counts,orient='index').reset_index()
+hex_id_col = f'h3_index_{h3_res_level}'
+edge_df.rename({'index': hex_id_col,0:'count'},axis=1,inplace=True)
+
+edge_df['lat'] = edge_df[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[0])
+edge_df['long'] = edge_df[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[1])
+
+edge_df.plot.scatter(x='long',y='lat',c='count',marker='o',edgecolors='none',colormap='viridis',figsize=(30,20))
+plt.xticks([], []); plt.yticks([], []);
+
+#%%
+# INDEX ALL NODES AT VARIOUS H3 LEVELS
+
+# index each data point into the spatial index of the specified resolution
+for res in range(7, 13):
+    col_hex_id = "hex_id_{}".format(res)
+    col_geom = "geometry_{}".format(res)
+    msg_ = "At resolution {} -->  H3 cell id : {} and its geometry: {} "
+    print(msg_.format(res, col_hex_id, col_geom))
+
+    osm_nodes[col_hex_id] = osm_nodes.apply(
+                                        lambda row: h3.geo_to_h3(
+                                                    lat = row['geometry'].y,
+                                                    lng = row['geometry'].x,
+                                                    resolution = res),
+                                        axis = 1)
+
+    # use h3.h3_to_geo_boundary to obtain the geometries of these hexagons
+    osm_nodes[col_geom] = osm_nodes[col_hex_id].apply(
+                                        lambda x: {"type": "Polygon",
+                                                   "coordinates":
+                                                   [h3.h3_to_geo_boundary(
+                                                       h=x, geo_json=True)]
+                                                   }
+                                        )      
+
+#%%                          
+# PLOT NODE DENSITY
+osm_nodes.plot()
+hex_id_col = 'hex_id_10'
+grouped = osm_nodes.groupby(hex_id_col).size().to_frame('count').reset_index()
+
+grouped['lat'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[0])
+grouped['long'] = grouped[hex_id_col].apply(lambda x: h3.h3_to_geo(x)[1])
+
+grouped.plot.scatter(x='long',y='lat',c='count',marker='o',edgecolors='none',colormap='viridis',figsize=(30,20))
+plt.xticks([], []); plt.yticks([], []);
 # %%
