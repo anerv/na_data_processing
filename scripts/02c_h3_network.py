@@ -17,6 +17,7 @@ import pickle
 from src import db_functions as dbf
 from src import graph_functions as gf
 from timeit import default_timer as timer
+from shapely.geometry import Polygon
 
 with open(r'../config.yml') as file:
 
@@ -109,30 +110,34 @@ def h3_fill_line():
 
     pass
 
-def h3_index_to_geometry(h3_indices):
+def h3_index_to_geometry(h3_indices, shapely_polys=False):
+
+    polygon_coords = []
 
     for h in h3_indices:
         
+        h3_coords = h3.h3_to_geo_boundary(h=h, geo_json=True)
+        polygon_coords.append(h3_coords)
 
-    pass
+    if shapely_polys:
+        
+        polys = [Polygon(p) for p in polygon_coords]
+
+        return polys
+
+    return polygon_coords
+
 
 # Create column with edge coordinates
 osm_edges['coords'] = osm_edges['geometry'].apply(lambda x: gf.return_coord_list(x))
 osm_edges[f'h3_index_{h3_res_level}'] = osm_edges['coords'].apply(lambda x: coords_to_h3(x,h3_res_level))
-
 
 #%%
 coords = gf.return_coord_list(osm_edges.loc[41504,'geometry'])
 
 h3_index = coords_to_h3(coords,13)
 
-polygon_coords = []
-for hi in h3_index:
-    h3_coords = h3.h3_to_geo_boundary(h=hi, geo_json=True)
-    polygon_coords.append(h3_coords)
-                        
-# %%
-polys = [Polygon(p) for p in polygon_coords]
+polys = h3_index_to_geometry(h3_index, shapely_polys=True)
 
 gdf = gpd.GeoDataFrame(geometry=polys,crs=osm_edges.crs)
 # %%
