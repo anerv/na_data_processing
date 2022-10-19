@@ -21,3 +21,4 @@ study_area: 'DK'
 muni_fp: '../data/muni_boundary.gpkg'
 
 h3_urban_level: 7
+h3_pop_level: 8
