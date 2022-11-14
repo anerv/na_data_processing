@@ -22,3 +22,4 @@ muni_fp: '../data/muni_boundary.gpkg'
 
 h3_urban_level: 7
 h3_pop_level: 8
+h3_network_level: 12
