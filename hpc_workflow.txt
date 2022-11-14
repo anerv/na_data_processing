@@ -13,13 +13,10 @@ cd na_data
 
 mkdir data
 
---- scp -r /local/directory remote_username@10.10.0.2:/remote/directory
-
-scp -r /Users/anev/'OneDrive - ITU'/RESEARCH/NA_data_processing/scripts anev@front:/home/anev/na_data
 
 scp -r /Users/anev/'OneDrive - ITU'/RESEARCH/NA_data_processing/scripts anev@hpc.itu.dk:/home/anev/na_data
 
-scp -r /Users/anev/'OneDrive - ITU/RESEARCH'/NA_data_processing/scripts /home/anev/na_data
+
 scp -r /Users/anev/'OneDrive - ITU/RESEARCH'/NA_data_processing/src 
 scp /Users/anev/'OneDrive - ITU/RESEARCH'/NA_data_processing/setup.py
 scp config.yml /home/anev/na_data
@@ -29,12 +26,7 @@ eval "$(conda shell.bash hook)"
 conda activate na_data_hpc
 pip install -e .
 
-scp -r /Users/anev/Desktop/test.rtf anev@front:/home/anev/na_data
 
-scp -r images misz@hpc.itu.dk:~
 
-scp -r /Users/anev/'OneDrive - ITU'/RESEARCH/NA_data_processing/scripts anev@hpc.itu.dk:~
 
-ssh itu_user@hpc.itu.dk 'cat >> .ssh/authorized_keys' 
-
-cat ~/.ssh/id_rsa.pub | ssh anev@hpc.itu.dk 'cat >> .ssh/authorized_keys'
+ssh-copy-id -i ~/.ssh/id_rsa.pub anev@hpc.itu.dk
