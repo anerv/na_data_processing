@@ -197,7 +197,7 @@ pf.plot_scatter(pop_gdf, metric_col="population", marker=".", colormap="Oranges"
 
 
 # INDEX POPULATION AT VARIOUS H3 LEVELS
-for res in range(7, 11):
+for res in range(6, 11):
     col_hex_id = "hex_id_{}".format(res)
     col_geom = "geometry_{}".format(res)
     msg_ = "At resolution {} -->  H3 cell id : {} and its geometry: {} "
@@ -246,6 +246,7 @@ plt.yticks([], [])
 plt.title("hex-grid: population")
 
 #%%
+h3_pop_level = 7
 # Convert to H3 polygons
 print(f"Creating hexagons at resolution {h3_pop_level}...")
 
@@ -277,6 +278,7 @@ h3_gdf.to_crs(crs, inplace=True)
 # Export data
 h3_gdf.to_file(f"../data/intermediary/pop/h3_pop_{h3_pop_level}_polygons.gpkg")
 
+#%%
 print("Saving data to Postgres!")
 
 connection = dbf.connect_pg(db_name, db_user, db_password)
@@ -294,4 +296,6 @@ print(test)
 
 connection.close()
 
+# %%
+pop_data = gpd.read_file(f"../data/intermediary/pop/h3_pop_{h3_pop_level}_polygons.gpkg")
 # %%
