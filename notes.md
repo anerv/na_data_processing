@@ -1,9 +1,43 @@
+# TODO
 
-### Thoughts on using osmnx, pandana etc. for initial data processing
+- script for setting up database with postgis
+- terminal command for loading OSM to database - set up style file!
+- script for cleaning up OSM data!
+- script for loading GeoDK to postgres
+- script for loading admin boundaries (munis)
+- script for indexing pop and urban data with H3 + load to postgres
 
-- osmnx and pandana create the same number of edges (indicating same structure for network)
-- but pandana seems to be a simpler df structure.
-- osmnx needs the multiindex
-- seems to be simpler to create pandana edge list from osmnx than vice versa
-- workflow could be to load osmnx data to postgis database - do processing - load back to geodataframe
-- and then convert to which graph type I need
+- script for FM
+- script for cleaning up FM
+
+- script for identifying intersections in OSM
+
+- script for classifying intersections
+- script for classifying cycling infrastructure
+- script for indexing infra and intersections with muni
+
+- script for indexing infra with H3
+
+## Questions
+
+- How to find components in OSM/H3?
+- Will it even be necessary to build a graph?
+
+## Analysis
+
+- **Network density**
+- **Fragmentation**  
+- **Network reach**
+- **Directness**
+
+### Network density
+
+Should be fairly easy - get H3 hexagons within XX distance
+
+### Reach and Directness
+
+Requires some kind of isochrones/routing - e.g. using Observable example.
+
+### Components
+
+Can be based on a graph object OR whether an edge can be found?
