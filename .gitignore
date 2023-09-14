@@ -10,3 +10,8 @@ tests/data_expl.html
 scripts/cache/
 hpc_workflow.txt
 hpc_workflow.txt
+
+*/archive/*
+*/*/archive/*
+
+
