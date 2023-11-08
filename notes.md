@@ -6,7 +6,7 @@
 - script for loading GeoDK to postgres
 - script for loading admin boundaries (munis)
 - script for indexing pop and urban data with H3 + load to postgres
-
+test tests
 - script for FM
 - script for cleaning up FM
 
